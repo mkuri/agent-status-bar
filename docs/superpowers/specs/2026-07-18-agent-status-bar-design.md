@@ -54,9 +54,9 @@ detection works identically in any terminal, tmux, or IDE.
 Claude Code session (any terminal / tmux pane)
     │  hooks (see State model)
     ▼
-~/projects/dotfiles/claude/hooks/session-state.py      [dotfiles-owned]
+~/projects/dotfiles/claude/hooks/record-session-state.py      [dotfiles-owned]
     │  Python 3 stdlib only, ~60 lines; referenced in settings.json as
-    │  $HOME/.claude/hooks/session-state.py (symlink created by dotfiles
+    │  $HOME/.claude/hooks/record-session-state.py (symlink created by dotfiles
     │  setup.sh — no dependency on this repo's location)
     │  reads event JSON from stdin,
     │  writes state file atomically (tmp + rename)
@@ -190,7 +190,7 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
 
 ## Component responsibilities
 
-### `session-state.py` (lives in dotfiles: `claude/hooks/session-state.py`)
+### `record-session-state.py` (lives in dotfiles: `claude/hooks/record-session-state.py`)
 
 - Read one JSON payload from stdin; extract `hook_event_name`, `session_id`,
   `cwd`; map to a state; write/delete the state file atomically.
@@ -226,10 +226,10 @@ The user's Claude Code configuration is managed in
 `~/.claude/hooks` are symlinks into that git-tracked directory. Ownership
 is split so that the foundational layer never depends on this project:
 
-**Dotfiles own the producer.** `session-state.py` lives in
+**Dotfiles own the producer.** `record-session-state.py` lives in
 `~/projects/dotfiles/claude/hooks/` next to the existing hook scripts, and
 the hook entries in `~/projects/dotfiles/claude/settings.json` reference it
-as `$HOME/.claude/hooks/session-state.py`. After dotfiles `setup.sh` on any
+as `$HOME/.claude/hooks/record-session-state.py`. After dotfiles `setup.sh` on any
 machine, session state recording works with no other repo present. Both
 changes are committed through the user's normal dotfiles flow; nothing in
 this project programmatically mutates `~/.claude/settings.json`. The
@@ -307,8 +307,8 @@ dotfiles (~/projects/dotfiles)        [producer — committed by the user]
 └── claude/
     ├── settings.json                 + hooks entries
     └── hooks/
-        ├── session-state.py          the producer script
-        └── tests/test_session_state.py
+        ├── record-session-state.py          the producer script
+        └── tests/test_record_session_state.py
 ```
 
 Build: `swift build -c release` (Apple Silicon, macOS 13+). No Xcode project,
