@@ -35,33 +35,52 @@ do not affect the design.
 
 ## Architecture
 
-Two components communicate through state files. Hook events are pushed by
-Claude Code itself, so detection works identically in any terminal, tmux, or
-IDE.
+The system is split into two independently owned layers that communicate
+only through state files on disk:
+
+- **Producer (owned by the dotfiles repo)** — a hook script that records
+  every Claude Code session's state to a well-known location. This is a
+  basic capability of the user's Claude Code setup: it works on any machine
+  after dotfiles setup and has no knowledge of any display tool.
+- **Consumer (this repo, agent-status-bar)** — a menu bar app that renders
+  those state files. It is one possible frontend; anything else (a CLI, a
+  widget, a tmux status line) could read the same files.
+
+The state-file format and location are the contract between the layers (see
+"State contract"). Hook events are pushed by Claude Code itself, so
+detection works identically in any terminal, tmux, or IDE.
 
 ```
 Claude Code session (any terminal / tmux pane)
     │  hooks (see State model)
     ▼
-hooks/agent_status_hook.py           Python 3 stdlib only, ~60 lines
+~/projects/dotfiles/claude/hooks/session-state.py      [dotfiles-owned]
+    │  Python 3 stdlib only, ~60 lines; referenced in settings.json as
+    │  $HOME/.claude/hooks/session-state.py (symlink created by dotfiles
+    │  setup.sh — no dependency on this repo's location)
     │  reads event JSON from stdin,
     │  writes state file atomically (tmp + rename)
     ▼
-~/.local/state/agent-status-bar/sessions/<session_id>.json
+~/.local/state/claude-sessions/<session_id>.json        [the contract]
     ▲
     │  directory watch (DispatchSource) + 5 s timer
-StatusBarApp                          Swift, SPM executable, no dependencies
+StatusBarApp                          [this repo] Swift, SPM, no deps
     ├─ menu bar: SF Symbol glyphs + counts, monochrome template rendering
     ├─ dropdown: one text row per session + Quit
     └─ alert engine: sound (NSSound) + blink on threshold breach
 ```
 
-### State file
+### State contract
 
-`~/.local/state/agent-status-bar/sessions/<session_id>.json`
+One JSON file per live session at
+`~/.local/state/claude-sessions/<session_id>.json` (XDG state dir —
+machine-local execution state, deliberately not `~/.local/share`, which is
+for portable data). The directory is named for the data, not for any
+consumer.
 
 ```json
 {
+  "version": 1,
   "session_id": "…",
   "state": "running" | "permission" | "idle",
   "since": 1752800000.0,
@@ -76,6 +95,9 @@ StatusBarApp                          Swift, SPM executable, no dependencies
 - `pid` is the Claude Code process PID, captured as the hook process's parent
   PID (`os.getppid()`). Hooks are spawned directly by the claude process, so
   this holds under tmux as well.
+- `version` increments only on breaking changes to this schema; consumers
+  skip files whose `version` is newer than they understand and must tolerate
+  unknown extra fields.
 
 ## State model and hook wiring
 
@@ -88,7 +110,8 @@ Three session states, rendered with SF Symbols:
 | `idle` | Finished responding / awaiting next instruction | `checkmark.circle` |
 
 Hook events registered in `~/.claude/settings.json` (a symlink into the
-user's dotfiles — see "Hook registration via dotfiles") and their mapping:
+user's dotfiles — see "Ownership and dotfiles integration") and their
+mapping:
 
 | Hook event | New state |
 | --- | --- |
@@ -167,7 +190,7 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
 
 ## Component responsibilities
 
-### `hooks/agent_status_hook.py`
+### `session-state.py` (lives in dotfiles: `claude/hooks/session-state.py`)
 
 - Read one JSON payload from stdin; extract `hook_event_name`, `session_id`,
   `cwd`; map to a state; write/delete the state file atomically.
@@ -176,6 +199,8 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
 - Stdlib only (`json`, `os`, `sys`, `tempfile`, `pathlib`).
 - Core logic in `handle_event(payload: dict, state_dir: Path)` for unit
   testing; `__main__` is a thin stdin wrapper.
+- Knows nothing about agent-status-bar; its only obligation is the state
+  contract above.
 
 ### `StatusBarApp` (Swift)
 
@@ -194,23 +219,30 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
 - `com.agent-status-bar.plist` — optional LaunchAgent template for start at
   login; installing it is a manual, documented step.
 
-## Hook registration via dotfiles
+## Ownership and dotfiles integration
 
 The user's Claude Code configuration is managed in
 `~/projects/dotfiles/claude`: `~/.claude/settings.json` and
-`~/.claude/hooks` are symlinks into that git-tracked directory. Therefore
-**nothing in this project programmatically mutates `~/.claude/settings.json`**
-— doing so would dirty the dotfiles working tree behind the user's back.
+`~/.claude/hooks` are symlinks into that git-tracked directory. Ownership
+is split so that the foundational layer never depends on this project:
 
-Instead, hook registration is a one-time edit to
-`~/projects/dotfiles/claude/settings.json`, committed through the user's
-normal dotfiles flow. The hook `command` entries reference this repository
-by absolute path (`$HOME/projects/agent-status-bar/hooks/agent_status_hook.py`),
-so the script itself stays versioned here, next to the app that consumes its
-output. README carries the exact JSON block to paste. The dotfiles repo
-currently registers no hooks, so the block introduces the `hooks` key; if
-other hooks (e.g. the existing `notify-on-stop.sh`) are enabled later, Claude
-Code runs all matching hooks independently — no conflict.
+**Dotfiles own the producer.** `session-state.py` lives in
+`~/projects/dotfiles/claude/hooks/` next to the existing hook scripts, and
+the hook entries in `~/projects/dotfiles/claude/settings.json` reference it
+as `$HOME/.claude/hooks/session-state.py`. After dotfiles `setup.sh` on any
+machine, session state recording works with no other repo present. Both
+changes are committed through the user's normal dotfiles flow; nothing in
+this project programmatically mutates `~/.claude/settings.json`. The
+dotfiles repo currently registers no hooks, so the block introduces the
+`hooks` key; if other hooks (e.g. the existing `notify-on-stop.sh`) are
+enabled later, Claude Code runs all matching hooks independently — no
+conflict.
+
+**This repo owns one consumer.** agent-status-bar reads
+`~/.local/state/claude-sessions/` and renders it. If the directory is
+missing or empty it shows the quiet glyph; installing or removing the app
+never touches dotfiles. Its README documents the state contract it consumes
+and points at the dotfiles hook as the reference producer.
 
 ## Error handling and edge cases
 
@@ -235,26 +267,29 @@ Code runs all matching hooks independently — no conflict.
   subprocess-based) may keep `permission` displayed until `PostToolUse`.
 - If Claude Code renames hook events in a future release, the hook script
   ignores unknown events and the bar degrades to stale-data cleanup;
-  `install-hooks.py` is the single place listing event names.
+  the hook entries in dotfiles `settings.json` are the single place listing
+  event names.
 
 ## Testing
 
-- **Python (`unittest`)**: event payload → expected state file transitions,
-  including `since` preservation on same-state events, `SessionEnd` deletion,
-  and malformed-payload no-ops.
+- **Python (`unittest`, lives in dotfiles next to the script)**: event
+  payload → expected state file transitions, including `since` preservation
+  on same-state events, `SessionEnd` deletion, and malformed-payload no-ops.
+  Run manually with `python3 -m unittest` in `claude/hooks/`; the kebab-case
+  script is loaded via `importlib`.
 - **Swift (XCTest via SPM)**: `StateModel` aggregation — counts, zero-count
   hiding, threshold crossing exactly once per state entry, blink set
-  contents, stale filtering, activity-detection override.
-- **Manual E2E**: `scripts/fake-session.sh` pipes a scripted sequence of hook
-  payloads through `agent_status_hook.py` to drive the bar visually; real
-  sessions in tmux/Ghostty as final verification.
+  contents, stale filtering, activity-detection override. Contract fixtures
+  (sample state files) keep the consumer testable without the producer.
+- **Manual E2E**: `scripts/fake-session.sh` writes a scripted sequence of
+  contract state files to drive the bar visually — no producer needed; real
+  sessions in tmux/Ghostty as full-stack final verification.
 
 ## Repository layout
 
 ```
-agent-status-bar/
+agent-status-bar/                     [this repo — consumer only]
 ├── docs/superpowers/specs/2026-07-18-agent-status-bar-design.md
-├── hooks/agent_status_hook.py
 ├── StatusBarApp/
 │   ├── Package.swift
 │   ├── Sources/AgentStatusBar/
@@ -267,6 +302,13 @@ agent-status-bar/
 │   ├── fake-session.sh
 │   └── com.agent-status-bar.plist
 └── README.md
+
+dotfiles (~/projects/dotfiles)        [producer — committed by the user]
+└── claude/
+    ├── settings.json                 + hooks entries
+    └── hooks/
+        ├── session-state.py          the producer script
+        └── tests/test_session_state.py
 ```
 
 Build: `swift build -c release` (Apple Silicon, macOS 13+). No Xcode project,
@@ -275,7 +317,6 @@ no external dependencies, no code signing required for personal use.
 ## References
 
 - [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar)
-  (577★, MIT) — reference for hook merge strategy and Swift menu bar
-  patterns.
+  (577★, MIT) — reference for Swift menu bar patterns.
 - [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) —
   event list current as of 2026-07-18.
