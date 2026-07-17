@@ -87,7 +87,8 @@ Three session states, rendered with SF Symbols:
 | `permission` | Blocked on a permission dialog | `hand.raised.fill` |
 | `idle` | Finished responding / awaiting next instruction | `checkmark.circle` |
 
-Hook events registered in `~/.claude/settings.json` and their mapping:
+Hook events registered in `~/.claude/settings.json` (a symlink into the
+user's dotfiles — see "Hook registration via dotfiles") and their mapping:
 
 | Hook event | New state |
 | --- | --- |
@@ -189,13 +190,27 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
 
 ### `scripts/`
 
-- `install-hooks.py` — merges the hook entries into `~/.claude/settings.json`
-  after writing a timestamped backup. Idempotent; entries reference the
-  absolute path of `agent_status_hook.py`; only adds entries it owns
-  (identified by that path). Run manually by the user, never automatically.
-- `uninstall-hooks.py` — removes exactly those entries.
+- `fake-session.sh` — E2E driver (see Testing).
 - `com.agent-status-bar.plist` — optional LaunchAgent template for start at
   login; installing it is a manual, documented step.
+
+## Hook registration via dotfiles
+
+The user's Claude Code configuration is managed in
+`~/projects/dotfiles/claude`: `~/.claude/settings.json` and
+`~/.claude/hooks` are symlinks into that git-tracked directory. Therefore
+**nothing in this project programmatically mutates `~/.claude/settings.json`**
+— doing so would dirty the dotfiles working tree behind the user's back.
+
+Instead, hook registration is a one-time edit to
+`~/projects/dotfiles/claude/settings.json`, committed through the user's
+normal dotfiles flow. The hook `command` entries reference this repository
+by absolute path (`$HOME/projects/agent-status-bar/hooks/agent_status_hook.py`),
+so the script itself stays versioned here, next to the app that consumes its
+output. README carries the exact JSON block to paste. The dotfiles repo
+currently registers no hooks, so the block introduces the `hooks` key; if
+other hooks (e.g. the existing `notify-on-stop.sh`) are enabled later, Claude
+Code runs all matching hooks independently — no conflict.
 
 ## Error handling and edge cases
 
@@ -249,8 +264,6 @@ agent-status-bar/
 │   │   └── ProcessProbe.swift
 │   └── Tests/AgentStatusBarTests/StateModelTests.swift
 ├── scripts/
-│   ├── install-hooks.py
-│   ├── uninstall-hooks.py
 │   ├── fake-session.sh
 │   └── com.agent-status-bar.plist
 └── README.md
