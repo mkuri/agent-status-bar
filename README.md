@@ -1,8 +1,8 @@
 # agent-status-bar
 
-Minimal macOS menu bar app showing every Claude Code session on the
-machine at a glance: running / waiting-for-permission / awaiting-
-instruction counts rendered as monochrome SF Symbols, with sound +
+Minimal macOS menu bar app showing every Claude Code and Antigravity CLI
+(`agy`) session on the machine at a glance: running / waiting-for-permission
+/ awaiting-instruction counts rendered as monochrome SF Symbols, with sound +
 blink alerts when a session has been waiting past a threshold.
 
 ## How it works
@@ -13,6 +13,13 @@ repo) writes one JSON state file per session to
 pure consumer of those files; any other frontend could read the same
 contract. Schema and design:
 `docs/superpowers/specs/2026-07-18-agent-status-bar-design.md`.
+
+The Antigravity CLI producer (`record-antigravity-session-state.py`, also in
+the dotfiles repo) writes the same contract into `antigravity-sessions/`. The
+app reads both directories and tags each dropdown row with its agent
+(`claude · project` / `agy · project`); the bar counts are machine-wide totals
+across both. Antigravity currently reports `running` / `idle` only (it exposes
+no permission hook) — see the design doc.
 
 ## Build and run
 
@@ -55,6 +62,10 @@ The hook script and its registration live in the dotfiles repo
 (`claude/hooks/record-session-state.py` plus a `hooks` block in
 `claude/settings.json`). Without a producer this app just shows a
 dimmed terminal glyph.
+
+The Antigravity producer lives in the same dotfiles repo (`gemini/hooks/` plus a
+`hooks.json` registered at the CLI's global customization root) and shares the
+atomic-write helper with the Claude producer.
 
 ## Testing
 

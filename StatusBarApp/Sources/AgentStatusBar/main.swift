@@ -1,14 +1,20 @@
 import AppKit
 
-// MARK: - State directory (contract location)
+// MARK: - State directories (contract locations, one per agent)
 
-let stateDirURL: URL = {
+let stateDirectories: [(agent: AgentType, url: URL)] = {
+    let base: URL
     let env = ProcessInfo.processInfo.environment
     if let xdg = env["XDG_STATE_HOME"], !xdg.isEmpty {
-        return URL(fileURLWithPath: xdg).appendingPathComponent("claude-sessions")
+        base = URL(fileURLWithPath: xdg)
+    } else {
+        base = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/state")
     }
-    return FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".local/state/claude-sessions")
+    return [
+        (.claude, base.appendingPathComponent("claude-sessions")),
+        (.antigravity, base.appendingPathComponent("antigravity-sessions")),
+    ]
 }()
 
 // MARK: - Bar rendering (composed template image, monochrome)
@@ -92,7 +98,7 @@ enum BarRenderer {
 final class StatusController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let model = StateModel()
-    private var dirSource: DispatchSourceFileSystemObject?
+    private var dirSources: [DispatchSourceFileSystemObject] = []
     private var pollTimer: Timer?
     private var blinkTimer: Timer?
     private var blinkOn = true
@@ -114,44 +120,60 @@ final class StatusController: NSObject, NSApplicationDelegate {
         }
         RunLoop.main.add(blink, forMode: .common)
         blinkTimer = blink
-        watchDirectory()
+        watchDirectories()
         refresh()
     }
 
-    /// The directory may not exist until the producer first writes; the
-    /// 5 s poll retries the watch until it attaches.
-    private func watchDirectory() {
-        dirSource?.cancel()
-        dirSource = nil
-        let fd = open(stateDirURL.path, O_EVTONLY)
-        guard fd >= 0 else { return }
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd, eventMask: .write, queue: .main)
-        source.setEventHandler { [weak self] in self?.refresh() }
-        source.setCancelHandler { close(fd) }
-        source.resume()
-        dirSource = source
+    /// Directories may not exist until a producer first writes; the 5 s poll
+    /// retries the watch until every present directory is attached.
+    private func watchDirectories() {
+        for s in dirSources { s.cancel() }
+        dirSources = []
+        for (_, url) in stateDirectories {
+            let fd = open(url.path, O_EVTONLY)
+            guard fd >= 0 else { continue }
+            let source = DispatchSource.makeFileSystemObjectSource(
+                fileDescriptor: fd, eventMask: .write, queue: .main)
+            source.setEventHandler { [weak self] in self?.refresh() }
+            source.setCancelHandler { close(fd) }
+            source.resume()
+            dirSources.append(source)
+        }
     }
 
     private func loadSnapshots() -> [SessionSnapshot] {
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: stateDirURL, includingPropertiesForKeys: nil) else { return [] }
-        return files
-            .filter { $0.pathExtension == "json" }
-            .compactMap { (try? Data(contentsOf: $0)).flatMap { SessionSnapshot.decode($0) } }
+        var all: [SessionSnapshot] = []
+        for (agent, url) in stateDirectories {
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: url, includingPropertiesForKeys: nil) else { continue }
+            for file in files where file.pathExtension == "json" {
+                if let data = try? Data(contentsOf: file),
+                   let snap = SessionSnapshot.decode(data, agent: agent) {
+                    all.append(snap)
+                }
+            }
+        }
+        return all
     }
 
     private func refresh() {
-        if dirSource == nil { watchDirectory() }
+        let existing = stateDirectories.filter {
+            FileManager.default.fileExists(atPath: $0.url.path)
+        }
+        if dirSources.count < existing.count { watchDirectories() }
         let config = Config.load()
         let now = Date()
 
         let all = loadSnapshots()
         let livePIDs = Set(all.map(\.pid).filter(ProcessProbe.isAlive))
         let (live, stale) = StateModel.splitStale(all, livePIDs: livePIDs, now: now)
+        let dirByAgent = Dictionary(uniqueKeysWithValues:
+            stateDirectories.map { ($0.agent, $0.url) })
         for s in stale {
-            try? FileManager.default.removeItem(
-                at: stateDirURL.appendingPathComponent("\(s.sessionID).json"))
+            if let dir = dirByAgent[s.agent] {
+                try? FileManager.default.removeItem(
+                    at: dir.appendingPathComponent("\(s.sessionID).json"))
+            }
         }
 
         var activePIDs: Set<Int32> = []
@@ -179,8 +201,9 @@ final class StatusController: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         for row in lastOutput.rows {
             let suffix = row.overThreshold ? "  !" : ""
-            let item = NSMenuItem(title: "\(row.name)  \(formatElapsed(row.elapsed))\(suffix)",
-                                  action: nil, keyEquivalent: "")
+            let item = NSMenuItem(
+                title: "\(row.agent.label) · \(row.name)  \(formatElapsed(row.elapsed))\(suffix)",
+                action: nil, keyEquivalent: "")
             item.image = BarRenderer.symbol(BarRenderer.glyphs[row.state]!)
             menu.addItem(item)
         }
