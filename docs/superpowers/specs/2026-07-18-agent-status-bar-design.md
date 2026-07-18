@@ -55,7 +55,7 @@ Claude Code session (any terminal / tmux pane)
     │  hooks (see State model)
     ▼
 ~/projects/dotfiles/claude/hooks/record-session-state.py      [dotfiles-owned]
-    │  Python 3 stdlib only, ~60 lines; referenced in settings.json as
+    │  Python 3 stdlib only, ~120 lines; referenced in settings.json as
     │  $HOME/.claude/hooks/record-session-state.py (symlink created by dotfiles
     │  setup.sh — no dependency on this repo's location)
     │  reads event JSON from stdin,
@@ -176,9 +176,11 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
 
 ## Menu bar UI
 
-- `NSStatusItem` with an attributed title: SF Symbol template images
-  (`NSTextAttachment`) followed by counts, e.g. `⏵ 2  ✋ 1  ✓ 1` rendered as
-  `play.fill 2  hand.raised.fill 1  checkmark.circle 1`.
+- `NSStatusItem` whose button image is a single composed template `NSImage`:
+  SF Symbol glyphs and counts drawn in black, e.g. `⏵ 2  ✋ 1  ✓ 1` rendered
+  as `play.fill 2  hand.raised.fill 1  checkmark.circle 1`. Template
+  rendering derives shape from the alpha channel, so blink dims a segment by
+  drawing it at reduced alpha.
 - Template rendering keeps everything monochrome and automatically adapts to
   the menu bar appearance (matches the user's existing white-on-dark bar).
 - Segments with count 0 are hidden. With no live sessions, a single dimmed
@@ -196,7 +198,8 @@ Sounds are macOS system sound names resolved via `NSSound(named:)`.
   `cwd`; map to a state; write/delete the state file atomically.
 - Entire body wrapped in `try/except: pass`; always exits 0; never writes to
   stdout — a monitoring hook must never break or slow Claude Code.
-- Stdlib only (`json`, `os`, `sys`, `tempfile`, `pathlib`).
+- Stdlib only (`json`, `os`, `subprocess`, `sys`, `tempfile`, `time`,
+  `pathlib`).
 - Core logic in `handle_event(payload: dict, state_dir: Path)` for unit
   testing; `__main__` is a thin stdin wrapper.
 - Knows nothing about agent-status-bar; its only obligation is the state
