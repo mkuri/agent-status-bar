@@ -34,6 +34,14 @@ final class SnapshotTests: XCTestCase {
         XCTAssertNil(SessionSnapshot.decode(Data(odd.utf8)))
     }
 
+    func testDecodeInjectsAgentFromCaller() throws {
+        let claude = try XCTUnwrap(SessionSnapshot.decode(Data(fixture.utf8)))
+        XCTAssertEqual(claude.agent, .claude)  // default
+        let agy = try XCTUnwrap(
+            SessionSnapshot.decode(Data(fixture.utf8), agent: .antigravity))
+        XCTAssertEqual(agy.agent, .antigravity)
+    }
+
     func snap(_ id: String, pid: Int32, updatedAgo: TimeInterval, now: Date) -> SessionSnapshot {
         SessionSnapshot(sessionID: id, state: .running,
                         since: now.addingTimeInterval(-updatedAgo), cwd: "/p",
@@ -46,7 +54,7 @@ final class SnapshotTests: XCTestCase {
         let dead = snap("b", pid: 2, updatedAgo: 10, now: now)
         let result = StateModel.splitStale([live, dead], livePIDs: [1], now: now)
         XCTAssertEqual(result.live, [live])
-        XCTAssertEqual(result.staleIDs, ["b"])
+        XCTAssertEqual(result.stale.map(\.sessionID), ["b"])
     }
 
     func testSplitStaleOldFile() {
@@ -54,6 +62,6 @@ final class SnapshotTests: XCTestCase {
         let old = snap("a", pid: 1, updatedAgo: StateModel.staleAge + 1, now: now)
         let result = StateModel.splitStale([old], livePIDs: [1], now: now)
         XCTAssertEqual(result.live, [])
-        XCTAssertEqual(result.staleIDs, ["a"])
+        XCTAssertEqual(result.stale.map(\.sessionID), ["a"])
     }
 }

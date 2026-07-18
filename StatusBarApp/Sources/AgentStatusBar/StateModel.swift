@@ -4,6 +4,18 @@ enum SessionState: String {
     case running, permission, idle
 }
 
+enum AgentType: String {
+    case claude, antigravity
+
+    /// Short tag shown in dropdown rows.
+    var label: String {
+        switch self {
+        case .claude: return "claude"
+        case .antigravity: return "agy"
+        }
+    }
+}
+
 struct SessionSnapshot: Equatable {
     let sessionID: String
     let state: SessionState
@@ -11,10 +23,24 @@ struct SessionSnapshot: Equatable {
     let cwd: String
     let pid: Int32
     let updatedAt: Date
+    let agent: AgentType
 
     static let contractVersion = 1
 
-    static func decode(_ data: Data) -> SessionSnapshot? {
+    init(sessionID: String, state: SessionState, since: Date, cwd: String,
+         pid: Int32, updatedAt: Date, agent: AgentType = .claude) {
+        self.sessionID = sessionID
+        self.state = state
+        self.since = since
+        self.cwd = cwd
+        self.pid = pid
+        self.updatedAt = updatedAt
+        self.agent = agent
+    }
+
+    /// The state file carries no agent field; `agent` is injected by the
+    /// loader from the source directory.
+    static func decode(_ data: Data, agent: AgentType = .claude) -> SessionSnapshot? {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let version = raw["version"] as? Int, version <= contractVersion,
               let id = raw["session_id"] as? String,
@@ -31,7 +57,8 @@ struct SessionSnapshot: Equatable {
             since: Date(timeIntervalSince1970: since),
             cwd: raw["cwd"] as? String ?? "",
             pid: pid,
-            updatedAt: Date(timeIntervalSince1970: updated))
+            updatedAt: Date(timeIntervalSince1970: updated),
+            agent: agent)
     }
 }
 
@@ -46,6 +73,7 @@ struct SessionRow: Equatable {
     let state: SessionState
     let elapsed: TimeInterval
     let overThreshold: Bool
+    let agent: AgentType
 }
 
 struct DisplayOutput: Equatable {
@@ -65,17 +93,17 @@ final class StateModel {
     static let staleAge: TimeInterval = 24 * 3600
 
     static func splitStale(_ snapshots: [SessionSnapshot], livePIDs: Set<Int32>,
-                           now: Date) -> (live: [SessionSnapshot], staleIDs: [String]) {
+                           now: Date) -> (live: [SessionSnapshot], stale: [SessionSnapshot]) {
         var live: [SessionSnapshot] = []
-        var staleIDs: [String] = []
+        var stale: [SessionSnapshot] = []
         for s in snapshots {
             if livePIDs.contains(s.pid), now.timeIntervalSince(s.updatedAt) < Self.staleAge {
                 live.append(s)
             } else {
-                staleIDs.append(s.sessionID)
+                stale.append(s)
             }
         }
-        return (live, staleIDs)
+        return (live, stale)
     }
 
     private var alertedKeys: Set<String> = []
@@ -130,7 +158,8 @@ final class StateModel {
                 }
             }
             rows.append(SessionRow(name: (s.cwd as NSString).lastPathComponent,
-                                   state: state, elapsed: elapsed, overThreshold: over))
+                                   state: state, elapsed: elapsed, overThreshold: over,
+                                   agent: s.agent))
         }
         alertedKeys.formIntersection(currentKeys)
         seenEntryKeys.formIntersection(waitingKeys)

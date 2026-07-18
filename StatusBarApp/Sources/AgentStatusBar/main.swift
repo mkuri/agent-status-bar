@@ -138,7 +138,7 @@ final class StatusController: NSObject, NSApplicationDelegate {
             at: stateDirURL, includingPropertiesForKeys: nil) else { return [] }
         return files
             .filter { $0.pathExtension == "json" }
-            .compactMap { (try? Data(contentsOf: $0)).flatMap(SessionSnapshot.decode) }
+            .compactMap { (try? Data(contentsOf: $0)).flatMap { SessionSnapshot.decode($0) } }
     }
 
     private func refresh() {
@@ -148,10 +148,10 @@ final class StatusController: NSObject, NSApplicationDelegate {
 
         let all = loadSnapshots()
         let livePIDs = Set(all.map(\.pid).filter(ProcessProbe.isAlive))
-        let (live, staleIDs) = StateModel.splitStale(all, livePIDs: livePIDs, now: now)
-        for id in staleIDs {
+        let (live, stale) = StateModel.splitStale(all, livePIDs: livePIDs, now: now)
+        for s in stale {
             try? FileManager.default.removeItem(
-                at: stateDirURL.appendingPathComponent("\(id).json"))
+                at: stateDirURL.appendingPathComponent("\(s.sessionID).json"))
         }
 
         var activePIDs: Set<Int32> = []

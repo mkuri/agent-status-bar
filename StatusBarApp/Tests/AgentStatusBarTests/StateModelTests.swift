@@ -201,4 +201,26 @@ final class StateModelTests: XCTestCase {
         XCTAssertEqual(formatElapsed(180), "3m")
         XCTAssertEqual(formatElapsed(3900), "1h 5m")
     }
+
+    func testCountsAggregateAcrossAgentsAndRowsCarryAgent() {
+        let out = StateModel().evaluate(
+            [SessionSnapshot(sessionID: "a", state: .running,
+                             since: now.addingTimeInterval(-5), cwd: "/x/api",
+                             pid: 100, updatedAt: now, agent: .claude),
+             SessionSnapshot(sessionID: "b", state: .running,
+                             since: now.addingTimeInterval(-5), cwd: "/x/web",
+                             pid: 101, updatedAt: now, agent: .antigravity),
+             SessionSnapshot(sessionID: "c", state: .idle,
+                             since: now.addingTimeInterval(-5), cwd: "/x/infra",
+                             pid: 102, updatedAt: now, agent: .antigravity)],
+            activePIDs: [], now: now, config: config)
+        XCTAssertEqual(out.segments, [
+            BarSegment(state: .running, count: 2, blinking: false),
+            BarSegment(state: .idle, count: 1, blinking: false),
+        ])
+        let byName = Dictionary(uniqueKeysWithValues: out.rows.map { ($0.name, $0.agent) })
+        XCTAssertEqual(byName["api"], .claude)
+        XCTAssertEqual(byName["web"], .antigravity)
+        XCTAssertEqual(byName["infra"], .antigravity)
+    }
 }
