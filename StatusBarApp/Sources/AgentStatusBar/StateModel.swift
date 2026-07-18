@@ -21,7 +21,8 @@ struct SessionSnapshot: Equatable {
               let stateRaw = raw["state"] as? String,
               let state = SessionState(rawValue: stateRaw),
               let since = raw["since"] as? Double,
-              let pid = raw["pid"] as? Int,
+              let pidRaw = raw["pid"] as? Int,
+              let pid = Int32(exactly: pidRaw),
               let updated = raw["updated_at"] as? Double
         else { return nil }
         return SessionSnapshot(
@@ -29,7 +30,7 @@ struct SessionSnapshot: Equatable {
             state: state,
             since: Date(timeIntervalSince1970: since),
             cwd: raw["cwd"] as? String ?? "",
-            pid: Int32(pid),
+            pid: pid,
             updatedAt: Date(timeIntervalSince1970: updated))
     }
 }

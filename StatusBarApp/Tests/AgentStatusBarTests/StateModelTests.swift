@@ -24,6 +24,14 @@ final class StateModelTests: XCTestCase {
         XCTAssertTrue(out.soundsToPlay.isEmpty)
     }
 
+    func testThresholdBoundaryIsInclusive() {
+        let out = StateModel().evaluate(
+            [snap("a", .permission, sinceAgo: 120), snap("b", .idle, sinceAgo: 300)],
+            activePIDs: [], now: now, config: config)
+        XCTAssertEqual(out.soundsToPlay, ["Glass", "Tink"])
+        XCTAssertTrue(out.rows.allSatisfy(\.overThreshold))
+    }
+
     func testActivityOverrideDisplaysPermissionAsRunning() {
         let out = StateModel().evaluate(
             [snap("a", .permission, sinceAgo: 500, pid: 7)],

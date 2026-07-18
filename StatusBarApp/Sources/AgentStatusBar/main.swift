@@ -100,14 +100,20 @@ final class StatusController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        // .common mode keeps both timers firing while the dropdown menu is
+        // open (menu tracking runs the run loop outside .default mode).
+        let poll = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             self?.refresh()
         }
-        blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        RunLoop.main.add(poll, forMode: .common)
+        pollTimer = poll
+        let blink = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self, self.lastOutput.segments.contains(where: \.blinking) else { return }
             self.blinkOn.toggle()
             self.render()
         }
+        RunLoop.main.add(blink, forMode: .common)
+        blinkTimer = blink
         watchDirectory()
         refresh()
     }
