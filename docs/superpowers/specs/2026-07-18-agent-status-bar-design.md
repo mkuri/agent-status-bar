@@ -145,6 +145,11 @@ the feature can be disabled with `activity_detection: false`.
 
 ## Alert engine
 
+- Immediate entry sound: the moment a session enters `permission` or `idle`,
+  play `immediate_sound_permission` / `immediate_sound_idle` once (defaults
+  "Pop" / "Purr"; empty string disables). Keyed per state entry like the
+  threshold alerts. The first evaluate after app launch seeds already-waiting
+  sessions silently so startup never fires a sound burst.
 - `permission` for ≥ `permission_alert_sec` (default 120): play
   `sound_permission` once, blink the permission segment of the bar until the
   state changes.
@@ -168,11 +173,14 @@ restart needed). Missing file or keys fall back to defaults.
   "sound_idle": "Tink",
   "blink": true,
   "activity_detection": true,
-  "activity_cpu_threshold_pct": 3.0
+  "activity_cpu_threshold_pct": 3.0,
+  "immediate_sound_permission": "Pop",
+  "immediate_sound_idle": "Purr"
 }
 ```
 
-Sounds are macOS system sound names resolved via `NSSound(named:)`.
+Sounds are macOS system sound names resolved via `NSSound(named:)`; an
+empty string disables that sound.
 
 ## Menu bar UI
 

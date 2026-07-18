@@ -11,6 +11,14 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(c.blink)
         XCTAssertTrue(c.activityDetection)
         XCTAssertEqual(c.activityCpuThresholdPct, 3.0)
+        XCTAssertEqual(c.immediateSoundPermission, "Pop")
+        XCTAssertEqual(c.immediateSoundIdle, "Purr")
+    }
+
+    func testImmediateSoundsDisabledByEmptyString() {
+        let c = Config(raw: ["immediate_sound_permission": "", "immediate_sound_idle": ""])
+        XCTAssertEqual(c.immediateSoundPermission, "")
+        XCTAssertEqual(c.immediateSoundIdle, "")
     }
 
     func testPartialOverlayKeepsOtherDefaults() {

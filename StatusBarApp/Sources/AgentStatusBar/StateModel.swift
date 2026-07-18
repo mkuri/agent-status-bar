@@ -79,6 +79,10 @@ final class StateModel {
     }
 
     private var alertedKeys: Set<String> = []
+    private var seenEntryKeys: Set<String> = []
+    /// False until the first evaluate: sessions already waiting when the app
+    /// launches are seeded silently instead of firing an entry-sound burst.
+    private var primed = false
 
     func evaluate(_ snapshots: [SessionSnapshot], activePIDs: Set<Int32>,
                   now: Date, config: Config) -> DisplayOutput {
@@ -93,31 +97,37 @@ final class StateModel {
         var blinkStates: Set<SessionState> = []
         var rows: [SessionRow] = []
         var currentKeys: Set<String> = []
+        var waitingKeys: Set<String> = []
 
         for (s, state) in effective {
             let elapsed = now.timeIntervalSince(s.since)
-            let threshold: Double?
-            switch state {
-            case .permission: threshold = config.permissionAlertSec
-            case .idle: threshold = config.idleAlertSec
-            case .running: threshold = nil
-            }
             var over = false
-            if let t = threshold, elapsed >= t {
-                over = true
-                if config.blink { blinkStates.insert(state) }
+            if state != .running {
                 let key = "\(s.sessionID)|\(s.since.timeIntervalSince1970)|\(state.rawValue)"
-                currentKeys.insert(key)
-                if !alertedKeys.contains(key) {
-                    alertedKeys.insert(key)
-                    sounds.append(state == .permission ? config.soundPermission
-                                                       : config.soundIdle)
+                waitingKeys.insert(key)
+                if seenEntryKeys.insert(key).inserted, primed {
+                    let name = state == .permission ? config.immediateSoundPermission
+                                                    : config.immediateSoundIdle
+                    if !name.isEmpty { sounds.append(name) }
+                }
+                let threshold = state == .permission ? config.permissionAlertSec
+                                                     : config.idleAlertSec
+                if elapsed >= threshold {
+                    over = true
+                    if config.blink { blinkStates.insert(state) }
+                    currentKeys.insert(key)
+                    if alertedKeys.insert(key).inserted {
+                        sounds.append(state == .permission ? config.soundPermission
+                                                           : config.soundIdle)
+                    }
                 }
             }
             rows.append(SessionRow(name: (s.cwd as NSString).lastPathComponent,
                                    state: state, elapsed: elapsed, overThreshold: over))
         }
         alertedKeys.formIntersection(currentKeys)
+        seenEntryKeys.formIntersection(waitingKeys)
+        primed = true
 
         let order: [SessionState] = [.running, .permission, .idle]
         let segments = order.compactMap { st -> BarSegment? in

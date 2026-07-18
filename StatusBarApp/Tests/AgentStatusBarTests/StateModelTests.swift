@@ -24,6 +24,59 @@ final class StateModelTests: XCTestCase {
         XCTAssertTrue(out.soundsToPlay.isEmpty)
     }
 
+    func testImmediateSoundOnceOnWaitingStateEntry() {
+        let model = StateModel()
+        // First evaluate primes silently, even for an already-waiting session.
+        let first = model.evaluate([snap("a", .running, sinceAgo: 1)],
+                                   activePIDs: [], now: now, config: config)
+        XCTAssertTrue(first.soundsToPlay.isEmpty)
+        // Session enters permission (state change resets since).
+        let entered = [SessionSnapshot(sessionID: "a", state: .permission,
+                                       since: now.addingTimeInterval(10),
+                                       cwd: "/tmp/proj", pid: 100,
+                                       updatedAt: now.addingTimeInterval(10))]
+        let second = model.evaluate(entered, activePIDs: [],
+                                    now: now.addingTimeInterval(11), config: config)
+        XCTAssertEqual(second.soundsToPlay, ["Pop"])
+        let third = model.evaluate(entered, activePIDs: [],
+                                   now: now.addingTimeInterval(15), config: config)
+        XCTAssertTrue(third.soundsToPlay.isEmpty)
+    }
+
+    func testImmediateIdleSoundOnEntry() {
+        let model = StateModel()
+        _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
+                           activePIDs: [], now: now, config: config)
+        let idle = [SessionSnapshot(sessionID: "a", state: .idle,
+                                    since: now.addingTimeInterval(5),
+                                    cwd: "/tmp/proj", pid: 100,
+                                    updatedAt: now.addingTimeInterval(5))]
+        let out = model.evaluate(idle, activePIDs: [],
+                                 now: now.addingTimeInterval(6), config: config)
+        XCTAssertEqual(out.soundsToPlay, ["Purr"])
+    }
+
+    func testImmediateSoundSuppressedOnFirstEvaluate() {
+        let out = StateModel().evaluate([snap("a", .permission, sinceAgo: 5)],
+                                        activePIDs: [], now: now, config: config)
+        XCTAssertTrue(out.soundsToPlay.isEmpty)
+    }
+
+    func testImmediateSoundDisabledByEmptyString() {
+        var c = config
+        c.immediateSoundPermission = ""
+        let model = StateModel()
+        _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
+                           activePIDs: [], now: now, config: c)
+        let entered = [SessionSnapshot(sessionID: "a", state: .permission,
+                                       since: now.addingTimeInterval(10),
+                                       cwd: "/tmp/proj", pid: 100,
+                                       updatedAt: now.addingTimeInterval(10))]
+        let out = model.evaluate(entered, activePIDs: [],
+                                 now: now.addingTimeInterval(11), config: c)
+        XCTAssertTrue(out.soundsToPlay.isEmpty)
+    }
+
     func testThresholdBoundaryIsInclusive() {
         let out = StateModel().evaluate(
             [snap("a", .permission, sinceAgo: 120), snap("b", .idle, sinceAgo: 300)],
@@ -90,7 +143,9 @@ final class StateModelTests: XCTestCase {
                              cwd: "/tmp/proj", pid: 100,
                              updatedAt: now.addingTimeInterval(400))],
             activePIDs: [], now: now.addingTimeInterval(400), config: config)
-        XCTAssertEqual(again.soundsToPlay, ["Glass"])
+        // Re-entering permission fires the immediate entry sound and, being
+        // past the threshold again, the re-armed threshold sound.
+        XCTAssertEqual(again.soundsToPlay, ["Pop", "Glass"])
     }
 
     func testBlinkDisabledByConfig() {
