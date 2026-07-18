@@ -83,26 +83,38 @@ command-line argument (`sys.argv[1]`), one hook registration per event.
 
 ## State model and hook wiring
 
-Two states in this iteration, using the existing `SessionState` enum:
+Two states in this iteration, using the existing `SessionState` enum. Only two
+events are hooked:
 
 | `agy` hook | Argument | New state |
 | --- | --- | --- |
 | `PreInvocation` | `PreInvocation` | `running` |
-| `PostToolUse` | `PostToolUse` | `running` |
 | `Stop` | `Stop` | `idle` |
 
 - `PreInvocation → running` covers the whole active turn: multiple model
   invocations within one turn all map to `running` (no visible flicker since
-  the state is unchanged and `since` is preserved).
-- `PostToolUse → running` is redundant for the state value but refreshes
-  `updated_at` / `cwd` / `pid` during long turns, keeping the session out of the
-  24 h stale window. `PostToolUse` uses `"matcher": "*"` (all tools).
+  the state is unchanged and `since` is preserved). `PreInvocation` also
+  refreshes `updated_at` / `cwd` / `pid` on each invocation, keeping the
+  session out of the 24 h stale window without a separate liveness hook.
 - `Stop → idle` is the "come back" signal — the main value for antigravity,
   equivalent to the Claude `Stop`/idle flow.
+- **`PostToolUse` is deliberately NOT hooked.** Empirical testing against
+  `agy` 1.1.4 showed the real event order for a turn is
+  `PreInvocation → PostToolUse → Stop → PostToolUse (again)`: a trailing
+  `PostToolUse` fires *after* `Stop` (agy's post-loop cleanup tool). Hooking
+  `PostToolUse → running` therefore reset the just-set `idle` back to
+  `running`, so sessions never settled to idle. Dropping it makes `Stop` the
+  final event of every turn.
 - There is no session-end deletion event; cleanup relies entirely on the
   consumer's existing liveness check (`kill(pid, 0)`) plus the 24 h stale
   sweep. When `agy` exits, its PID dies and the consumer removes the file on
-  the next tick — the same path Claude uses for crashed sessions.
+  the next tick — the same path Claude uses for crashed sessions. Verified
+  live: the recorded `pid` is the real `agy` process and is dead once `agy`
+  exits.
+- `cwd` comes from `workspacePaths[0]`, which is populated when the session
+  has a workspace (e.g. `agy --add-dir <path>` or a project) and empty
+  otherwise; a workspace-less session records `cwd: ""` and renders as
+  `agy · ` (empty basename) — an accepted degradation.
 
 ### Antigravity has no permission event
 
@@ -180,7 +192,8 @@ each producer rather than couple them.
 ### Registration (`gemini/config/hooks.json`)
 
 Each event is one registration that runs the script with the event name as an
-argument. `PreToolUse` is deliberately absent.
+argument. `PreToolUse` and `PostToolUse` are deliberately absent (see the state
+model above for why `PostToolUse` must not be hooked).
 
 ```json
 {
@@ -188,13 +201,6 @@ argument. `PreToolUse` is deliberately absent.
     "PreInvocation": [
       { "type": "command",
         "command": "python3 $HOME/.gemini/hooks/record-antigravity-session-state.py PreInvocation" }
-    ],
-    "PostToolUse": [
-      { "matcher": "*",
-        "hooks": [
-          { "type": "command",
-            "command": "python3 $HOME/.gemini/hooks/record-antigravity-session-state.py PostToolUse" }
-        ] }
     ],
     "Stop": [
       { "type": "command",
@@ -204,14 +210,16 @@ argument. `PreToolUse` is deliberately absent.
 }
 ```
 
-### Implementation step 0 — verify the global hooks path (blocking)
+The global hooks path is registered by symlinking `~/.gemini/config/hooks.json`
+→ `dotfiles/gemini/config/hooks.json` and `~/.gemini/hooks` →
+`dotfiles/gemini/hooks` (so the `$HOME/.gemini/hooks/...` command resolves).
 
-The exact global customization root for the CLI is confirmed empirically before
-anything else: place a trivial `hooks.json` (a `Stop` hook that `touch`es a
-marker file), run `agy -p "hi"`, and confirm it fires. `~/.gemini/config/`
-is the leading candidate (it is the confirmed global `mcp_config.json`
-location); the plugin form (`plugins/<name>/hooks.json`) is the fallback.
-The verified path fixes where `hooks.json` and the symlinks live.
+### Global hooks path — confirmed
+
+The CLI's global hooks path was confirmed empirically (agy 1.1.4): a trivial
+`Stop` hook placed at **`~/.gemini/config/hooks.json`** fired on `agy -p "hi"`.
+That is the registration location; the plugin form
+(`plugins/<name>/hooks.json`) remains an untested fallback.
 
 ## Consumer (this repo) — shared multi-agent refactor
 
