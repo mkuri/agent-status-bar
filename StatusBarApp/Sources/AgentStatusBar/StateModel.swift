@@ -131,7 +131,7 @@ final class StateModel {
             let elapsed = now.timeIntervalSince(s.since)
             var over = false
             if state != .running {
-                let key = "\(s.sessionID)|\(s.since.timeIntervalSince1970)|\(state.rawValue)"
+                let key = "\(s.agent.rawValue)|\(s.sessionID)|\(s.since.timeIntervalSince1970)|\(state.rawValue)"
                 waitingKeys.insert(key)
                 let enteredNow = seenEntryKeys.insert(key).inserted && primed
                 let threshold = state == .permission ? config.permissionAlertSec

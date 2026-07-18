@@ -64,4 +64,15 @@ final class SnapshotTests: XCTestCase {
         XCTAssertEqual(result.live, [])
         XCTAssertEqual(result.stale.map(\.sessionID), ["a"])
     }
+
+    func testSplitStalePreservesAgentForRouting() {
+        let now = Date()
+        let dead = SessionSnapshot(sessionID: "z", state: .running,
+                                   since: now, cwd: "/p", pid: 999_999,
+                                   updatedAt: now, agent: .antigravity)
+        let result = StateModel.splitStale([dead], livePIDs: [], now: now)
+        // The stale snapshot must carry its agent so the app deletes the file
+        // from antigravity-sessions, not claude-sessions.
+        XCTAssertEqual(result.stale.map(\.agent), [.antigravity])
+    }
 }

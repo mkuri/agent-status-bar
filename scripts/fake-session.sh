@@ -30,7 +30,7 @@ echo "2/4: agy idle past threshold -> expect blink + Tink sound"
 write "$AGY_DIR" fake-c idle "$(python3 -c 'import time; print(time.time() - 300)')"
 sleep 8
 
-echo "3/4: mix -> claude permission + agy running"
+echo "3/4: mix -> claude permission(fake-a) + claude running(fake-b) + agy running(fake-c); bar [play]2 [hand]1"
 write "$CLAUDE_DIR" fake-a permission "$(now)"
 write "$AGY_DIR" fake-c running "$(now)"
 sleep 8
