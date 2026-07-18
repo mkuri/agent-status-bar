@@ -8,9 +8,10 @@ struct Config: Equatable {
     var blink: Bool = true
     var activityDetection: Bool = true
     var activityCpuThresholdPct: Double = 3.0
-    // Played once the moment a session enters a waiting state; "" disables.
-    var immediateSoundPermission: String = "Pop"
-    var immediateSoundIdle: String = "Purr"
+    // Played once the moment a session enters a waiting state.
+    // nil (key absent) follows sound_permission / sound_idle; "" disables.
+    var immediateSoundPermission: String? = nil
+    var immediateSoundIdle: String? = nil
 
     static let defaultURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/agent-status-bar/config.json")

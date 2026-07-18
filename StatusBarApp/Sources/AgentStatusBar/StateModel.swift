@@ -105,21 +105,28 @@ final class StateModel {
             if state != .running {
                 let key = "\(s.sessionID)|\(s.since.timeIntervalSince1970)|\(state.rawValue)"
                 waitingKeys.insert(key)
-                if seenEntryKeys.insert(key).inserted, primed {
-                    let name = state == .permission ? config.immediateSoundPermission
-                                                    : config.immediateSoundIdle
-                    if !name.isEmpty { sounds.append(name) }
-                }
+                let enteredNow = seenEntryKeys.insert(key).inserted && primed
                 let threshold = state == .permission ? config.permissionAlertSec
                                                      : config.idleAlertSec
+                var thresholdFired = false
                 if elapsed >= threshold {
                     over = true
                     if config.blink { blinkStates.insert(state) }
                     currentKeys.insert(key)
                     if alertedKeys.insert(key).inserted {
+                        thresholdFired = true
                         sounds.append(state == .permission ? config.soundPermission
                                                            : config.soundIdle)
                     }
+                }
+                // Entry sound follows the threshold sound unless overridden,
+                // and is suppressed when the threshold alert fires this same
+                // tick — one moment never produces two sounds.
+                if enteredNow, !thresholdFired {
+                    let name = state == .permission
+                        ? (config.immediateSoundPermission ?? config.soundPermission)
+                        : (config.immediateSoundIdle ?? config.soundIdle)
+                    if !name.isEmpty { sounds.append(name) }
                 }
             }
             rows.append(SessionRow(name: (s.cwd as NSString).lastPathComponent,

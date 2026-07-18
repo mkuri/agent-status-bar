@@ -40,13 +40,13 @@ re-read every 5 s:
       "sound_idle": "Tink",
       "blink": true,
       "activity_detection": true,
-      "activity_cpu_threshold_pct": 3.0,
-      "immediate_sound_permission": "Pop",
-      "immediate_sound_idle": "Purr"
+      "activity_cpu_threshold_pct": 3.0
     }
 
-`immediate_sound_*` play once the moment a session starts waiting;
-the threshold sounds fire later if it keeps waiting. Sounds are system
+A sound plays once the moment a session starts waiting (same sound as
+that state's threshold alert by default), and again if it keeps waiting
+past the threshold. Optional `immediate_sound_permission` /
+`immediate_sound_idle` keys override the entry sound. Sounds are system
 sound names from /System/Library/Sounds; "" disables a sound.
 
 ## Producer setup

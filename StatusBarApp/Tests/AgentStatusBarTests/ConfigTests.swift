@@ -11,8 +11,8 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(c.blink)
         XCTAssertTrue(c.activityDetection)
         XCTAssertEqual(c.activityCpuThresholdPct, 3.0)
-        XCTAssertEqual(c.immediateSoundPermission, "Pop")
-        XCTAssertEqual(c.immediateSoundIdle, "Purr")
+        XCTAssertNil(c.immediateSoundPermission)  // nil = follow sound_permission
+        XCTAssertNil(c.immediateSoundIdle)        // nil = follow sound_idle
     }
 
     func testImmediateSoundsDisabledByEmptyString() {
