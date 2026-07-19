@@ -7,19 +7,18 @@ blink alerts when a session has been waiting past a threshold.
 
 ## How it works
 
-A Claude Code hook (`record-session-state.py`, managed in the dotfiles
-repo) writes one JSON state file per session to
-`${XDG_STATE_HOME:-~/.local/state}/claude-sessions/`. This app is a
-pure consumer of those files; any other frontend could read the same
-contract. Schema and design:
-`docs/superpowers/specs/2026-07-18-agent-status-bar-design.md`.
+This repo has two peers: a **producer** (`session-state-recorder/`) and a
+**consumer** (`StatusBarApp/`, one UI example). The producer's hook scripts
+write one JSON state file per session into
+`${XDG_STATE_HOME:-~/.local/state}/claude-sessions/` (Claude Code) and
+`antigravity-sessions/` (Antigravity CLI, `agy`). The app is a pure consumer of
+those files — any other frontend could read the same contract. Schema and
+design: `docs/superpowers/specs/2026-07-18-agent-status-bar-design.md`.
 
-The Antigravity CLI producer (`record-antigravity-session-state.py`, also in
-the dotfiles repo) writes the same contract into `antigravity-sessions/`. The
-app reads both directories and tags each dropdown row with its agent
-(`claude · project` / `agy · project`); the bar counts are machine-wide totals
-across both. Antigravity currently reports `running` / `idle` only (it exposes
-no permission hook) — see the design doc.
+Antigravity currently reports `running` / `idle` only (it exposes no permission
+hook) — see the design doc. The bar counts are machine-wide totals across both
+agents; each dropdown row is tagged with its agent (`claude · project` /
+`agy · project`).
 
 ## Build and run
 
@@ -63,14 +62,15 @@ names from /System/Library/Sounds; "" disables a sound.
 
 ## Producer setup
 
-The hook script and its registration live in the dotfiles repo
-(`claude/hooks/record-session-state.py` plus a `hooks` block in
-`claude/settings.json`). Without a producer this app just shows a
-dimmed terminal glyph.
+Without a producer the app just shows a dimmed terminal glyph. Install the
+hooks that feed it:
 
-The Antigravity producer lives in the same dotfiles repo (`gemini/hooks/` plus a
-`hooks.json` registered at the CLI's global customization root) and shares the
-atomic-write helper with the Claude producer.
+    session-state-recorder/setup.sh
+
+It interactively registers the Claude Code and/or Antigravity hooks (idempotent,
+backs up what it edits, and skips a symlinked `settings.json`). Requires
+`python3`. Manual setup and the state-file contract are documented in
+[`session-state-recorder/README.md`](session-state-recorder/README.md).
 
 ## Testing
 
