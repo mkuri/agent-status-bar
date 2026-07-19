@@ -156,7 +156,7 @@ final class StateModelTests: XCTestCase {
 
     func testUnderThresholdNoAlert() {
         let out = StateModel().evaluate(
-            [snap("a", .permission, sinceAgo: 119), snap("b", .idle, sinceAgo: 299)],
+            [snap("a", .permission, sinceAgo: 299), snap("b", .idle, sinceAgo: 299)],
             activePIDs: [], now: now, config: config)
         XCTAssertTrue(out.soundsToPlay.isEmpty)
         XCTAssertFalse(out.segments.contains { $0.blinking })
@@ -311,5 +311,28 @@ final class StateModelTests: XCTestCase {
              snap("b", .idle, sinceAgo: 400, pid: 2)],
             activePIDs: [], now: now, config: c)
         XCTAssertEqual(out.soundsToPlay, ["Glass", "Tink"])
+    }
+
+    func testDeferredNagDroppedWhenEpisodeResolves() {
+        let model = StateModel()
+        // Both sessions cross threshold on first sight: permission nags,
+        // idle is deferred by the cooldown.
+        let t0 = model.evaluate(
+            [snap("a", .permission, sinceAgo: 400, pid: 1),
+             snap("b", .idle, sinceAgo: 400, pid: 2)],
+            activePIDs: [], now: now, config: config)
+        XCTAssertEqual(t0.soundsToPlay, ["Glass"])
+        // Before the cooldown elapses, b's idle episode resolves (goes running).
+        let t1 = model.evaluate(
+            [snap("a", .permission, sinceAgo: 400, pid: 1),
+             snap("b", .running, sinceAgo: 1, pid: 2)],
+            activePIDs: [], now: now.addingTimeInterval(5), config: config)
+        XCTAssertTrue(t1.soundsToPlay.isEmpty)
+        // Past the cooldown, the dropped idle nag never rings (b still running).
+        let t2 = model.evaluate(
+            [snap("a", .permission, sinceAgo: 400, pid: 1),
+             snap("b", .running, sinceAgo: 1, pid: 2)],
+            activePIDs: [], now: now.addingTimeInterval(200), config: config)
+        XCTAssertTrue(t2.soundsToPlay.isEmpty)
     }
 }
