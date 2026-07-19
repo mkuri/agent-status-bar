@@ -41,20 +41,25 @@ Requires macOS 13+, Apple Silicon, Swift 5.9+ toolchain.
 re-read every 5 s:
 
     {
-      "permission_alert_sec": 120,
+      "permission_alert_sec": 300,
       "idle_alert_sec": 300,
       "sound_permission": "Glass",
       "sound_idle": "Tink",
+      "sound_cooldown_sec": 120,
       "blink": true,
       "activity_detection": true,
       "activity_cpu_threshold_pct": 3.0
     }
 
-A sound plays once the moment a session starts waiting (same sound as
-that state's threshold alert by default), and again if it keeps waiting
-past the threshold. Optional `immediate_sound_permission` /
-`immediate_sound_idle` keys override the entry sound. Sounds are system
-sound names from /System/Library/Sounds; "" disables a sound.
+A session's first sighting is silent, so launching a session does not ding.
+Afterwards a sound plays the moment a session enters a waiting state (same
+sound as that state's threshold alert by default), and again if it keeps
+waiting past the threshold. The entry sound always plays; the past-threshold
+nag is rate-limited by `sound_cooldown_sec` (default 120 s; `0` disables) so
+nags never land within that gap of another sound — a gated nag is deferred to
+the next quiet gap rather than dropped. Optional `immediate_sound_permission` /
+`immediate_sound_idle` keys override the entry sound. Sounds are system sound
+names from /System/Library/Sounds; "" disables a sound.
 
 ## Producer setup
 
