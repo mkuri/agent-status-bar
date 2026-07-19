@@ -76,3 +76,7 @@ atomic-write helper with the Claude producer.
 
     cd StatusBarApp && swift test            # consumer unit tests
     scripts/fake-session.sh                  # visual E2E without a producer
+
+## License
+
+MIT — see [LICENSE](LICENSE).
