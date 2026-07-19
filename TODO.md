@@ -13,9 +13,9 @@ Legend: `⚑` needs a maintainer decision · items without it are mechanical.
 - [x] Merge "quieter alerts" to `main` (D1 silent first sighting, D2 `sound_cooldown_sec` nag throttle, D3 permission threshold 120→300)
 - [x] Create public GitHub repo and push `main` (`mkuri/agent-status-bar`)
 - [x] Pre-publish secret scan of tracked files (clean)
+- [x] Add a LICENSE (**MIT**, `Copyright (c) 2026 Makoto Kurihara`)
 
 ## Now (highest leverage)
-- [ ] **⚑ Add a LICENSE.** Without one the code is all-rights-reserved, i.e. not actually open source. Recommended: **MIT** (short, permissive) or **Apache-2.0** (adds an explicit patent grant). Pick one, then add `LICENSE`.
 - [ ] **Ship / document the producer.** The app only shows real data once the state-file hooks are installed; without them it just renders a dimmed terminal glyph. Add a `producer/` directory (or a docs page) with a copy-pasteable setup: the Claude hook (`record-session-state.py` + the `hooks` block for `settings.json`) and the Antigravity producer (`record-antigravity-session-state.py` + `hooks.json`). These currently live only in the maintainer's private dotfiles. This is required for any external user to get the app working.
 - [ ] **README: add a demo GIF and full install steps.** A short screen recording of the menu bar + dropdown (capture with ⌘⇧5) is the single most effective addition for a menu-bar app. Document requirements (macOS 13+, Apple Silicon), build, login-item setup, and the producer setup above.
 - [ ] **Set repo topics** for discoverability: `macos`, `menu-bar`, `swift`, `claude-code`, `developer-tools`.
