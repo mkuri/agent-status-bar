@@ -1,7 +1,7 @@
 import Foundation
 
 struct Config: Equatable {
-    var permissionAlertSec: Double = 120
+    var permissionAlertSec: Double = 300
     var idleAlertSec: Double = 300
     var soundPermission: String = "Glass"
     var soundIdle: String = "Tink"

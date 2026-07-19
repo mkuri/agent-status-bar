@@ -4,7 +4,7 @@ import XCTest
 final class ConfigTests: XCTestCase {
     func testDefaults() {
         let c = Config()
-        XCTAssertEqual(c.permissionAlertSec, 120)
+        XCTAssertEqual(c.permissionAlertSec, 300)
         XCTAssertEqual(c.idleAlertSec, 300)
         XCTAssertEqual(c.soundPermission, "Glass")
         XCTAssertEqual(c.soundIdle, "Tink")
@@ -25,7 +25,7 @@ final class ConfigTests: XCTestCase {
         let c = Config(raw: ["idle_alert_sec": 60, "blink": false])
         XCTAssertEqual(c.idleAlertSec, 60)
         XCTAssertFalse(c.blink)
-        XCTAssertEqual(c.permissionAlertSec, 120)
+        XCTAssertEqual(c.permissionAlertSec, 300)
         XCTAssertEqual(c.soundPermission, "Glass")
     }
 

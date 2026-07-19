@@ -106,11 +106,15 @@ final class StateModelTests: XCTestCase {
     }
 
     func testThresholdBoundaryIsInclusive() {
-        let out = StateModel().evaluate(
-            [snap("a", .permission, sinceAgo: 120), snap("b", .idle, sinceAgo: 300)],
-            activePIDs: [], now: now, config: config)
-        XCTAssertEqual(out.soundsToPlay, ["Glass", "Tink"])
-        XCTAssertTrue(out.rows.allSatisfy(\.overThreshold))
+        let perm = StateModel().evaluate([snap("a", .permission, sinceAgo: 300)],
+                                         activePIDs: [], now: now, config: config)
+        XCTAssertEqual(perm.soundsToPlay, ["Glass"])
+        XCTAssertTrue(perm.rows.allSatisfy(\.overThreshold))
+
+        let idle = StateModel().evaluate([snap("b", .idle, sinceAgo: 300)],
+                                         activePIDs: [], now: now, config: config)
+        XCTAssertEqual(idle.soundsToPlay, ["Tink"])
+        XCTAssertTrue(idle.rows.allSatisfy(\.overThreshold))
     }
 
     func testActivityOverrideDisplaysPermissionAsRunning() {
@@ -132,7 +136,7 @@ final class StateModelTests: XCTestCase {
 
     func testPermissionThresholdFiresSoundOnceAndBlinks() {
         let model = StateModel()
-        let sessions = [snap("a", .permission, sinceAgo: 121)]
+        let sessions = [snap("a", .permission, sinceAgo: 301)]
         let first = model.evaluate(sessions, activePIDs: [], now: now, config: config)
         XCTAssertEqual(first.soundsToPlay, ["Glass"])
         XCTAssertEqual(first.segments, [BarSegment(state: .permission, count: 1, blinking: true)])
@@ -180,7 +184,7 @@ final class StateModelTests: XCTestCase {
     func testBlinkDisabledByConfig() {
         var c = config
         c.blink = false
-        let out = StateModel().evaluate([snap("a", .permission, sinceAgo: 121)],
+        let out = StateModel().evaluate([snap("a", .permission, sinceAgo: 301)],
                                         activePIDs: [], now: now, config: c)
         XCTAssertEqual(out.soundsToPlay, ["Glass"])         // sound still fires
         XCTAssertFalse(out.segments[0].blinking)
