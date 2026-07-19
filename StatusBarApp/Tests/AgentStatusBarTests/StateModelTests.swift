@@ -206,6 +206,32 @@ final class StateModelTests: XCTestCase {
         XCTAssertEqual(formatElapsed(3900), "1h 5m")
     }
 
+    func testFirstSightIdleIsSilentThenFinishRings() {
+        let model = StateModel()
+        // Brand-new session first seen in idle (SessionStart) — no ding.
+        let start = model.evaluate([snap("a", .idle, sinceAgo: 1)],
+                                   activePIDs: [], now: now, config: config)
+        XCTAssertTrue(start.soundsToPlay.isEmpty)
+        // Turn starts (running), then finishes (idle again) — the finish rings.
+        _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
+                           activePIDs: [], now: now.addingTimeInterval(10), config: config)
+        let finished = [SessionSnapshot(sessionID: "a", state: .idle,
+                                        since: now.addingTimeInterval(20),
+                                        cwd: "/tmp/proj", pid: 100,
+                                        updatedAt: now.addingTimeInterval(20))]
+        let out = model.evaluate(finished, activePIDs: [],
+                                 now: now.addingTimeInterval(21), config: config)
+        XCTAssertEqual(out.soundsToPlay, ["Tink"])
+    }
+
+    func testFirstSightOverThresholdStillNags() {
+        // App restart: a session already idle past threshold nags on first
+        // sight but plays no entry sound.
+        let out = StateModel().evaluate([snap("a", .idle, sinceAgo: 400)],
+                                        activePIDs: [], now: now, config: config)
+        XCTAssertEqual(out.soundsToPlay, ["Tink"])
+    }
+
     func testCountsAggregateAcrossAgentsAndRowsCarryAgent() {
         let out = StateModel().evaluate(
             [SessionSnapshot(sessionID: "a", state: .running,

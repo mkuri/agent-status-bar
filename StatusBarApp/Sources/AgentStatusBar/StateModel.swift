@@ -108,9 +108,10 @@ final class StateModel {
 
     private var alertedKeys: Set<String> = []
     private var seenEntryKeys: Set<String> = []
-    /// False until the first evaluate: sessions already waiting when the app
-    /// launches are seeded silently instead of firing an entry-sound burst.
-    private var primed = false
+    /// Session ids (`agent|id`) observed on a previous tick. A session's first
+    /// appearance is recorded here but fires no entry sound, so launching a new
+    /// session (SessionStart -> idle) and app restart are both silent.
+    private var knownSessions: Set<String> = []
 
     func evaluate(_ snapshots: [SessionSnapshot], activePIDs: Set<Int32>,
                   now: Date, config: Config) -> DisplayOutput {
@@ -126,31 +127,34 @@ final class StateModel {
         var rows: [SessionRow] = []
         var currentKeys: Set<String> = []
         var waitingKeys: Set<String> = []
+        var currentSessions: Set<String> = []
 
         for (s, state) in effective {
+            let sessionKey = "\(s.agent.rawValue)|\(s.sessionID)"
+            let firstSight = !knownSessions.contains(sessionKey)
+            currentSessions.insert(sessionKey)
+
             let elapsed = now.timeIntervalSince(s.since)
             var over = false
             if state != .running {
                 let key = "\(s.agent.rawValue)|\(s.sessionID)|\(s.since.timeIntervalSince1970)|\(state.rawValue)"
                 waitingKeys.insert(key)
-                let enteredNow = seenEntryKeys.insert(key).inserted && primed
+                let enteredNow = seenEntryKeys.insert(key).inserted && !firstSight
                 let threshold = state == .permission ? config.permissionAlertSec
                                                      : config.idleAlertSec
-                var thresholdFired = false
                 if elapsed >= threshold {
                     over = true
                     if config.blink { blinkStates.insert(state) }
                     currentKeys.insert(key)
                     if alertedKeys.insert(key).inserted {
-                        thresholdFired = true
                         sounds.append(state == .permission ? config.soundPermission
                                                            : config.soundIdle)
                     }
                 }
-                // Entry sound follows the threshold sound unless overridden,
-                // and is suppressed when the threshold alert fires this same
-                // tick — one moment never produces two sounds.
-                if enteredNow, !thresholdFired {
+                // Entry sound only when entering a waiting state below its
+                // threshold; a session already over threshold is represented by
+                // its nag, so one moment never produces two sounds.
+                if enteredNow, !over {
                     let name = state == .permission
                         ? (config.immediateSoundPermission ?? config.soundPermission)
                         : (config.immediateSoundIdle ?? config.soundIdle)
@@ -163,7 +167,7 @@ final class StateModel {
         }
         alertedKeys.formIntersection(currentKeys)
         seenEntryKeys.formIntersection(waitingKeys)
-        primed = true
+        knownSessions = currentSessions
 
         let order: [SessionState] = [.running, .permission, .idle]
         let segments = order.compactMap { st -> BarSegment? in
