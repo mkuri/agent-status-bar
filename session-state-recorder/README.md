@@ -31,29 +31,64 @@ touch a symlinked `settings.json` (e.g. a dotfiles-managed one).
 
 Restart your agent sessions afterward for the hooks to take effect.
 
+If you later move the clone, re-run `./setup.sh`; the command paths embed this
+directory's absolute path, so the old entry (now pointing at a missing file) is
+not auto-removed — delete the stale hook entry from your config.
+
 ## Install (manual)
 
-If you prefer editing config by hand, add an entry like this to
-`~/.claude/settings.json` for each of the events `SessionStart`,
-`UserPromptSubmit`, `PermissionRequest`, `PostToolUse`, `PostToolUseFailure`,
-`Stop`, `StopFailure`, `Notification` (with `"matcher": "idle_prompt"`), and
-`SessionEnd`:
+If you prefer editing config by hand, add the recorder command under
+`~/.claude/settings.json`'s `hooks` object for each of these events —
+`SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PostToolUse`,
+`PostToolUseFailure`, `Stop`, `StopFailure`, `SessionEnd` (no matcher), and
+`Notification` (with `"matcher": "idle_prompt"`). The shape is:
 
 ```json
 {
-  "hooks": [
-    {
-      "type": "command",
-      "command": "python3 \"/absolute/path/to/session-state-recorder/record-session-state.py\"",
-      "timeout": 5
-    }
-  ]
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/absolute/path/to/session-state-recorder/record-session-state.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/absolute/path/to/session-state-recorder/record-session-state.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
-For Antigravity, add to `~/.gemini/config/hooks.json` a `PreInvocation` and a
-`Stop` entry whose command is
-`python3 "/absolute/path/to/session-state-recorder/record-antigravity-session-state.py" <Event>`.
+Use `/absolute/path/to/session-state-recorder` = wherever you cloned this repo.
+
+For Antigravity, add to `~/.gemini/config/hooks.json`:
+
+```json
+{
+  "record-session-state": {
+    "PreInvocation": [
+      { "type": "command", "command": "python3 \"/absolute/path/to/session-state-recorder/record-antigravity-session-state.py\" PreInvocation" }
+    ],
+    "Stop": [
+      { "type": "command", "command": "python3 \"/absolute/path/to/session-state-recorder/record-antigravity-session-state.py\" Stop" }
+    ]
+  }
+}
+```
 
 ## Test
 

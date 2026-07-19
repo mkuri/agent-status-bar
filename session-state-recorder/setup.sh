@@ -61,6 +61,11 @@ PY
 
 install_agy() {
   local cfg="$HOME/.gemini/config/hooks.json"
+  if [ -L "$cfg" ]; then
+    echo "!! $cfg is a symlink (looks dotfiles-managed)."
+    echo "   Edit your dotfiles directly instead. Skipping Antigravity registration."
+    return
+  fi
   mkdir -p "$(dirname "$cfg")"
   [ -f "$cfg" ] && cp "$cfg" "$cfg.bak.$(date +%s)"
   python3 - "$cfg" "$AGY_HOOK" <<'PY'
