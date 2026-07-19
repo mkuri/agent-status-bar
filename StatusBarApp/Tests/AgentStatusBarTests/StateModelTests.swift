@@ -232,6 +232,19 @@ final class StateModelTests: XCTestCase {
         XCTAssertEqual(out.soundsToPlay, ["Tink"])
     }
 
+    func testNewSessionAppearingAfterPrimeIsSilent() {
+        let model = StateModel()
+        // Prime the model with an existing running session.
+        _ = model.evaluate([snap("a", .running, sinceAgo: 5)],
+                           activePIDs: [], now: now, config: config)
+        // A brand-new session appears in idle (SessionStart) after the model is
+        // already primed — it must be silent (no entry ding).
+        let out = model.evaluate(
+            [snap("a", .running, sinceAgo: 10), snap("b", .idle, sinceAgo: 1)],
+            activePIDs: [], now: now.addingTimeInterval(5), config: config)
+        XCTAssertTrue(out.soundsToPlay.isEmpty)
+    }
+
     func testCountsAggregateAcrossAgentsAndRowsCarryAgent() {
         let out = StateModel().evaluate(
             [SessionSnapshot(sessionID: "a", state: .running,
