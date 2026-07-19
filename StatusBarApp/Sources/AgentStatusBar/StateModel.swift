@@ -112,6 +112,9 @@ final class StateModel {
     /// appearance is recorded here but fires no entry sound, so launching a new
     /// session (SessionStart -> idle) and app restart are both silent.
     private var knownSessions: Set<String> = []
+    /// Wall-clock time of the last sound this model emitted (entry or nag).
+    /// Threshold nags fire only once `sound_cooldown_sec` has passed since it.
+    private var lastSoundAt: Date?
 
     func evaluate(_ snapshots: [SessionSnapshot], activePIDs: Set<Int32>,
                   now: Date, config: Config) -> DisplayOutput {
@@ -122,12 +125,14 @@ final class StateModel {
             return (s, s.state)
         }
 
-        var sounds: [String] = []
         var blinkStates: Set<SessionState> = []
         var rows: [SessionRow] = []
         var currentKeys: Set<String> = []
         var waitingKeys: Set<String> = []
         var currentSessions: Set<String> = []
+        var entrySounds: [String] = []
+        // (priority, key, sound): permission (0) is preferred over idle (1).
+        var nagCandidates: [(priority: Int, key: String, sound: String)] = []
 
         for (s, state) in effective {
             let sessionKey = "\(s.agent.rawValue)|\(s.sessionID)"
@@ -146,9 +151,12 @@ final class StateModel {
                     over = true
                     if config.blink { blinkStates.insert(state) }
                     currentKeys.insert(key)
-                    if alertedKeys.insert(key).inserted {
-                        sounds.append(state == .permission ? config.soundPermission
-                                                           : config.soundIdle)
+                    if !alertedKeys.contains(key) {
+                        nagCandidates.append((
+                            priority: state == .permission ? 0 : 1,
+                            key: key,
+                            sound: state == .permission ? config.soundPermission
+                                                        : config.soundIdle))
                     }
                 }
                 // Entry sound only when entering a waiting state below its
@@ -158,13 +166,33 @@ final class StateModel {
                     let name = state == .permission
                         ? (config.immediateSoundPermission ?? config.soundPermission)
                         : (config.immediateSoundIdle ?? config.soundIdle)
-                    if !name.isEmpty { sounds.append(name) }
+                    if !name.isEmpty { entrySounds.append(name) }
                 }
             }
             rows.append(SessionRow(name: (s.cwd as NSString).lastPathComponent,
                                    state: state, elapsed: elapsed, overThreshold: over,
                                    agent: s.agent))
         }
+
+        // Entry sounds always play and mark the moment. Nags are gated so no
+        // nag lands within `sound_cooldown_sec` of any prior sound; a gated nag
+        // is deferred (not marked alerted) and retried on a later tick.
+        var sounds: [String] = []
+        for name in entrySounds {
+            sounds.append(name)
+            lastSoundAt = now
+        }
+        for cand in nagCandidates.sorted(by: { $0.priority < $1.priority }) {
+            let clear = lastSoundAt.map {
+                now.timeIntervalSince($0) >= config.soundCooldownSec
+            } ?? true
+            if clear {
+                alertedKeys.insert(cand.key)
+                sounds.append(cand.sound)
+                lastSoundAt = now
+            }
+        }
+
         alertedKeys.formIntersection(currentKeys)
         seenEntryKeys.formIntersection(waitingKeys)
         knownSessions = currentSessions

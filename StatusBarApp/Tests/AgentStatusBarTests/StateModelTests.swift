@@ -266,4 +266,50 @@ final class StateModelTests: XCTestCase {
         XCTAssertEqual(byName["web"], .antigravity)
         XCTAssertEqual(byName["infra"], .antigravity)
     }
+
+    func testCooldownDefersSecondNagAcrossTicks() {
+        let model = StateModel()
+        // Two sessions already past threshold on first sight: permission is
+        // preferred; the idle nag is deferred by the 120 s cooldown.
+        let sessions = [snap("a", .permission, sinceAgo: 400, pid: 1),
+                        snap("b", .idle, sinceAgo: 400, pid: 2)]
+        let t0 = model.evaluate(sessions, activePIDs: [], now: now, config: config)
+        XCTAssertEqual(t0.soundsToPlay, ["Glass"])
+
+        let t1 = model.evaluate(sessions, activePIDs: [],
+                                now: now.addingTimeInterval(5), config: config)
+        XCTAssertTrue(t1.soundsToPlay.isEmpty)          // still within cooldown
+
+        let t2 = model.evaluate(sessions, activePIDs: [],
+                                now: now.addingTimeInterval(121), config: config)
+        XCTAssertEqual(t2.soundsToPlay, ["Tink"])       // deferred nag finally rings
+    }
+
+    func testEntrySoundDefersNagInSameTick() {
+        let model = StateModel()
+        // Prime both sessions (known); b sits in permission under threshold.
+        _ = model.evaluate([snap("a", .running, sinceAgo: 1, pid: 1),
+                            snap("b", .permission, sinceAgo: 1, pid: 2)],
+                           activePIDs: [], now: now, config: config)
+        let later = now.addingTimeInterval(400)
+        // a finishes (idle entry sound); b has now crossed its threshold.
+        let tick = [SessionSnapshot(sessionID: "a", state: .idle,
+                                    since: later.addingTimeInterval(-1),
+                                    cwd: "/tmp/proj", pid: 1, updatedAt: later),
+                    SessionSnapshot(sessionID: "b", state: .permission,
+                                    since: now.addingTimeInterval(-1),
+                                    cwd: "/tmp/proj", pid: 2, updatedAt: later)]
+        let out = model.evaluate(tick, activePIDs: [], now: later, config: config)
+        XCTAssertEqual(out.soundsToPlay, ["Tink"])      // entry rings; b's nag deferred
+    }
+
+    func testCooldownDisabledFiresEveryNag() {
+        var c = config
+        c.soundCooldownSec = 0
+        let out = StateModel().evaluate(
+            [snap("a", .permission, sinceAgo: 400, pid: 1),
+             snap("b", .idle, sinceAgo: 400, pid: 2)],
+            activePIDs: [], now: now, config: c)
+        XCTAssertEqual(out.soundsToPlay, ["Glass", "Tink"])
+    }
 }

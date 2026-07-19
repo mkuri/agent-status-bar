@@ -47,4 +47,10 @@ final class ConfigTests: XCTestCase {
         try Data(#"{"sound_permission": "Ping"}"#.utf8).write(to: url)
         XCTAssertEqual(Config.load(from: url).soundPermission, "Ping")
     }
+
+    func testSoundCooldownDefaultAndParsing() {
+        XCTAssertEqual(Config().soundCooldownSec, 120)
+        XCTAssertEqual(Config(raw: ["sound_cooldown_sec": 30]).soundCooldownSec, 30)
+        XCTAssertEqual(Config(raw: ["sound_cooldown_sec": 0]).soundCooldownSec, 0)
+    }
 }
