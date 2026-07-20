@@ -255,16 +255,21 @@ final class StateModelTests: XCTestCase {
                              pid: 101, updatedAt: now, agent: .antigravity),
              SessionSnapshot(sessionID: "c", state: .idle,
                              since: now.addingTimeInterval(-5), cwd: "/x/infra",
-                             pid: 102, updatedAt: now, agent: .antigravity)],
+                             pid: 102, updatedAt: now, agent: .antigravity),
+             SessionSnapshot(sessionID: "d", state: .permission,
+                             since: now.addingTimeInterval(-5), cwd: "/x/desktop",
+                             pid: 103, updatedAt: now, agent: .codex)],
             activePIDs: [], now: now, config: config)
         XCTAssertEqual(out.segments, [
             BarSegment(state: .running, count: 2, blinking: false),
+            BarSegment(state: .permission, count: 1, blinking: false),
             BarSegment(state: .idle, count: 1, blinking: false),
         ])
         let byName = Dictionary(uniqueKeysWithValues: out.rows.map { ($0.name, $0.agent) })
         XCTAssertEqual(byName["api"], .claude)
         XCTAssertEqual(byName["web"], .antigravity)
         XCTAssertEqual(byName["infra"], .antigravity)
+        XCTAssertEqual(byName["desktop"], .codex)
     }
 
     func testCooldownDefersSecondNagAcrossTicks() {

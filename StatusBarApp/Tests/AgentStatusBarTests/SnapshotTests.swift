@@ -40,6 +40,9 @@ final class SnapshotTests: XCTestCase {
         let agy = try XCTUnwrap(
             SessionSnapshot.decode(Data(fixture.utf8), agent: .antigravity))
         XCTAssertEqual(agy.agent, .antigravity)
+        let codex = try XCTUnwrap(
+            SessionSnapshot.decode(Data(fixture.utf8), agent: .codex))
+        XCTAssertEqual(codex.agent, .codex)
     }
 
     func snap(_ id: String, pid: Int32, updatedAgo: TimeInterval, now: Date) -> SessionSnapshot {

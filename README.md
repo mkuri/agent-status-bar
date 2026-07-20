@@ -1,7 +1,7 @@
 # agent-status-bar
 
-Minimal macOS menu bar app showing every Claude Code and Antigravity CLI
-(`agy`) session on the machine at a glance: running / waiting-for-permission
+Minimal macOS menu bar app showing every Claude Code, Antigravity CLI (`agy`),
+and Codex session on the machine at a glance: running / waiting-for-permission
 / awaiting-instruction counts rendered as monochrome SF Symbols, with sound +
 blink alerts when a session has been waiting past a threshold.
 
@@ -10,15 +10,16 @@ blink alerts when a session has been waiting past a threshold.
 This repo has two peers: a **producer** (`session-state-recorder/`) and a
 **consumer** (`StatusBarApp/`, one UI example). The producer's hook scripts
 write one JSON state file per session into
-`${XDG_STATE_HOME:-~/.local/state}/claude-sessions/` (Claude Code) and
-`antigravity-sessions/` (Antigravity CLI, `agy`). The app is a pure consumer of
-those files — any other frontend could read the same contract. Schema and
+`${XDG_STATE_HOME:-~/.local/state}/claude-sessions/` (Claude Code),
+`antigravity-sessions/` (Antigravity CLI, `agy`), and `codex-sessions/`
+(Codex). The app is a pure consumer of those files — any other frontend could
+read the same contract. Schema and
 design: `docs/superpowers/specs/2026-07-18-agent-status-bar-design.md`.
 
 Antigravity currently reports `running` / `idle` only (it exposes no permission
 hook) — see the design doc. The bar counts are machine-wide totals across both
 agents; each dropdown row is tagged with its agent (`claude · project` /
-`agy · project`).
+`agy · project` / `codex · project`).
 
 ## Build and run
 
@@ -67,10 +68,11 @@ hooks that feed it:
 
     session-state-recorder/setup.sh
 
-It interactively registers the Claude Code and/or Antigravity hooks (idempotent,
-backs up what it edits, and — for a symlinked, dotfiles-managed config — resolves
-the real target and edits it after you confirm). Requires `python3`. Manual setup
-and the state-file contract are documented in
+It interactively registers the Claude Code, Antigravity, and/or Codex hooks
+(idempotent, backs up what it edits, and — for a symlinked, dotfiles-managed
+config — resolves the real target and edits it after you confirm). Codex asks
+you to review and trust newly registered hooks with `/hooks`. Requires
+`python3`. Manual setup and the state-file contract are documented in
 [`session-state-recorder/README.md`](session-state-recorder/README.md).
 
 ## Testing

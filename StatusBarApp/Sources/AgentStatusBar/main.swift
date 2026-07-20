@@ -14,6 +14,7 @@ let stateDirectories: [(agent: AgentType, url: URL)] = {
     return [
         (.claude, base.appendingPathComponent("claude-sessions")),
         (.antigravity, base.appendingPathComponent("antigravity-sessions")),
+        (.codex, base.appendingPathComponent("codex-sessions")),
     ]
 }()
 

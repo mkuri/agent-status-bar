@@ -1,7 +1,7 @@
 """Shared state-file helpers for agent session recorders.
 
-Consumed by the Claude Code and Antigravity CLI hook producers. Maintains one
-JSON state file per session under an agent-specific state directory, following
+Consumed by the Claude Code, Antigravity CLI, and Codex hook producers.
+Maintains one JSON state file per session under an agent-specific state directory, following
 the versioned contract read by display tools such as agent-status-bar. Stdlib
 only; every function is best-effort and must never raise into the calling hook.
 """
