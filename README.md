@@ -68,8 +68,9 @@ hooks that feed it:
     session-state-recorder/setup.sh
 
 It interactively registers the Claude Code and/or Antigravity hooks (idempotent,
-backs up what it edits, and skips a symlinked `settings.json`). Requires
-`python3`. Manual setup and the state-file contract are documented in
+backs up what it edits, and — for a symlinked, dotfiles-managed config — resolves
+the real target and edits it after you confirm). Requires `python3`. Manual setup
+and the state-file contract are documented in
 [`session-state-recorder/README.md`](session-state-recorder/README.md).
 
 ## Testing
