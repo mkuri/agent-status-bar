@@ -5,13 +5,14 @@ enum SessionState: String {
 }
 
 enum AgentType: String {
-    case claude, antigravity
+    case claude, antigravity, codex
 
     /// Short tag shown in dropdown rows.
     var label: String {
         switch self {
         case .claude: return "claude"
         case .antigravity: return "agy"
+        case .codex: return "codex"
         }
     }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Interactive, idempotent installer for the session-state-recorder hooks.
-# Registers the Claude Code and/or Antigravity (agy) producer into the agent's
-# hook config. Safe to re-run. Stdlib Python only; no jq dependency.
+# Registers the Claude Code, Antigravity (agy), and/or Codex producer into the
+# agent's hook config. Safe to re-run. Stdlib Python only; no jq dependency.
 #
 # Symlinked (dotfiles-managed) config is supported: the installer resolves the
 # real target and, with your confirmation, edits that file — so you can review
@@ -20,6 +20,7 @@ case "$RECORDER_DIR" in
 esac
 CLAUDE_HOOK="$HOOK_BASE/record-session-state.py"
 AGY_HOOK="$HOOK_BASE/record-antigravity-session-state.py"
+CODEX_HOOK="$HOOK_BASE/record-codex-session-state.py"
 
 confirm() {
   # confirm "<question>" <default: Y|N> -> returns 0 for yes
@@ -152,18 +153,65 @@ PY
   fi
 }
 
+install_codex() {
+  local orig="$HOME/.codex/hooks.json" cfg
+  cfg="$(resolve_config_target "$orig" "Codex")" || return 0
+  mkdir -p "$(dirname "$cfg")"
+  local tmp="$cfg.tmp.$$" result
+  result="$(python3 - "$cfg" "$CODEX_HOOK" "$tmp" <<'PY'
+import json, os, sys
+cfg_path, hook, out = sys.argv[1], sys.argv[2], sys.argv[3]
+cmd = 'python3 "%s"' % hook
+events = ("SessionStart", "UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop")
+data = {}
+if os.path.exists(cfg_path):
+    with open(cfg_path) as f:
+        data = json.load(f)
+before = json.dumps(data, sort_keys=True)
+hooks = data.setdefault("hooks", {})
+for event in events:
+    arr = hooks.setdefault(event, [])
+    already = any(
+        any(h.get("command") == cmd for h in entry.get("hooks", []))
+        for entry in arr
+    )
+    if already:
+        continue
+    arr.append({"hooks": [{"type": "command", "command": cmd, "timeout": 5}]})
+if json.dumps(data, sort_keys=True) == before:
+    print("unchanged")
+else:
+    with open(out, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    print("changed")
+PY
+)"
+  if [ "$result" = "changed" ]; then
+    if [ ! -L "$orig" ] && [ -f "$cfg" ]; then cp "$cfg" "$cfg.bak.$(date +%s)"; fi
+    mv "$tmp" "$cfg"
+    echo "-> Codex hook registered in $cfg"
+  else
+    rm -f "$tmp"
+    echo "-> Codex hook already registered in $cfg (no change)"
+  fi
+}
+
 echo "session-state-recorder installer"
 echo "Recorder: $RECORDER_DIR"
 echo
 
 claude_default=N; [ -d "$HOME/.claude" ] && claude_default=Y
 agy_default=N;    [ -d "$HOME/.gemini" ] && agy_default=Y
+codex_default=N;  [ -d "$HOME/.codex" ] && codex_default=Y
 
 if confirm "Register the Claude Code hook?" "$claude_default"; then install_claude; fi
 if confirm "Register the Antigravity (agy) hook?" "$agy_default"; then install_agy; fi
+if confirm "Register the Codex hook?" "$codex_default"; then install_codex; fi
 
 echo
 echo "Done. Session state files will appear under:"
 echo "  \${XDG_STATE_HOME:-\$HOME/.local/state}/claude-sessions/"
 echo "  \${XDG_STATE_HOME:-\$HOME/.local/state}/antigravity-sessions/"
+echo "  \${XDG_STATE_HOME:-\$HOME/.local/state}/codex-sessions/"
 echo "Restart your agent sessions for the hooks to take effect."

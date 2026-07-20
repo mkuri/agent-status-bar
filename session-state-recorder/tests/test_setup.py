@@ -13,6 +13,8 @@ from pathlib import Path
 SETUP = Path(__file__).resolve().parent.parent / "setup.sh"
 NINE = ["SessionStart", "UserPromptSubmit", "PermissionRequest", "PostToolUse",
         "PostToolUseFailure", "Stop", "StopFailure", "Notification", "SessionEnd"]
+CODEX_EVENTS = ["SessionStart", "UserPromptSubmit", "PermissionRequest",
+                "PostToolUse", "Stop"]
 
 
 def run(home, answers):
@@ -35,6 +37,9 @@ class SetupTests(unittest.TestCase):
 
     def load(self, path):
         return json.loads(Path(path).read_text())
+
+    def codex_hooks(self):
+        return Path(self.home) / ".codex" / "hooks.json"
 
     def test_fresh_install_writes_nine_events(self):
         run(self.home, "y\nn\n")  # Claude yes, agy no
@@ -115,7 +120,7 @@ class SetupTests(unittest.TestCase):
         setup_copy.write_text(SETUP.read_text())
         setup_copy.chmod(0o755)
         subprocess.run(
-            ["bash", str(setup_copy)], input="y\ny\n",  # Claude yes, agy yes
+            ["bash", str(setup_copy)], input="y\ny\ny\n",
             capture_output=True, text=True,
             env={**os.environ, "HOME": self.home}, timeout=30,
         )
@@ -126,6 +131,9 @@ class SetupTests(unittest.TestCase):
         agy_cmd = self.load(agy)["record-session-state"]["Stop"][0]["command"]
         self.assertEqual(
             agy_cmd, 'python3 "%s/record-antigravity-session-state.py" Stop' % base)
+        codex = self.load(Path(self.home) / ".codex" / "hooks.json")
+        codex_cmd = codex["hooks"]["Stop"][0]["hooks"][0]["command"]
+        self.assertEqual(codex_cmd, 'python3 "%s/record-codex-session-state.py"' % base)
 
     def test_absolute_command_when_recorder_outside_home(self):
         # The real repo checkout lives outside the sandbox HOME, so the emitted
@@ -147,6 +155,34 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(set(group), {"PreInvocation", "Stop"})
         self.assertTrue(group["Stop"][0]["command"].endswith(
             'record-antigravity-session-state.py" Stop'))
+
+    def test_codex_fresh_install_writes_five_events(self):
+        result = run(self.home, "n\nn\ny\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        hooks = self.load(self.codex_hooks())["hooks"]
+        self.assertEqual(sorted(hooks), sorted(CODEX_EVENTS))
+        stop = hooks["Stop"][0]["hooks"][0]
+        self.assertEqual(stop["timeout"], 5)
+        self.assertTrue(stop["command"].endswith('record-codex-session-state.py"'))
+
+    def test_codex_install_is_idempotent_and_preserves_other_keys(self):
+        hooks_path = self.codex_hooks()
+        hooks_path.parent.mkdir(parents=True)
+        hooks_path.write_text('{"description": "personal hooks"}')
+        run(self.home, "n\nn\ny\n")
+        before = sorted(hooks_path.parent.glob("hooks.json.bak.*"))
+        result = run(self.home, "n\nn\ny\n")
+        self.assertIn("no change", result.stdout)
+        self.assertEqual(sorted(hooks_path.parent.glob("hooks.json.bak.*")), before)
+        data = self.load(hooks_path)
+        self.assertEqual(data["description"], "personal hooks")
+        recorders = [
+            handler
+            for entry in data["hooks"]["Stop"]
+            for handler in entry.get("hooks", [])
+            if handler.get("command", "").endswith('record-codex-session-state.py"')
+        ]
+        self.assertEqual(len(recorders), 1)
 
 
 if __name__ == "__main__":
