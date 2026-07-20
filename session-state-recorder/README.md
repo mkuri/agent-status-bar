@@ -26,10 +26,11 @@ Each file: `{version, session_id, state, since, cwd, pid, updated_at}`
 It asks whether to register the Claude Code hook and the Antigravity hook
 (defaults inferred from `~/.claude` / `~/.gemini`), then merges the needed hook
 entries into `~/.claude/settings.json` and/or `~/.gemini/config/hooks.json`.
-It is idempotent (re-running makes no change and writes no backup) and backs up
-any file before it edits it. If your config is a symlink (e.g. dotfiles-managed),
-it resolves the real target, shows it, and — only after you confirm — edits that
-file; review and commit it in the repo that owns it afterward.
+It is idempotent (re-running makes no change and writes no backup). A plain
+config file is backed up before editing. If your config is a symlink (e.g.
+dotfiles-managed), it resolves the real target, shows it, and — only after you
+confirm — edits that file in place (no `.bak` littering your repo; its version
+history is your backup); review and commit it in the repo that owns it afterward.
 
 Restart your agent sessions afterward for the hooks to take effect.
 

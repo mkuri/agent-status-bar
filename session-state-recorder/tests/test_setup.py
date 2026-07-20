@@ -83,6 +83,18 @@ class SetupTests(unittest.TestCase):
         self.assertIn("is a symlink ->", result.stdout + result.stderr)
         self.assertEqual(self.load(real), {"other": 1})  # unchanged
 
+    def test_continues_after_symlink_decline(self):
+        # Declining the symlink edit must SKIP Claude and fall through to the
+        # agy prompt + Done footer, not abort the installer under `set -e`.
+        self._symlinked_claude()
+        # Claude yes, decline edit, agy yes (agy config is a fresh plain file).
+        result = run(self.home, "y\nn\ny\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Done.", result.stdout)  # reached the footer
+        agy = Path(self.home) / ".gemini" / "config" / "hooks.json"
+        group = self.load(agy)["record-session-state"]
+        self.assertEqual(set(group), {"PreInvocation", "Stop"})  # agy still ran
+
     def test_dangling_symlink_skipped(self):
         link = self.claude_settings()
         link.parent.mkdir(parents=True)

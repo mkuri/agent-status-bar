@@ -48,8 +48,10 @@ resolve_config_target() {
 }
 
 install_claude() {
-  local settings
-  settings="$(resolve_config_target "$HOME/.claude/settings.json" "Claude Code")" || return
+  local orig="$HOME/.claude/settings.json" settings
+  # `|| return 0`: a declined/skipped resolve returns 0 so `set -e` does not
+  # abort the whole installer (it must fall through to the Antigravity prompt).
+  settings="$(resolve_config_target "$orig" "Claude Code")" || return 0
   mkdir -p "$(dirname "$settings")"
   local tmp="$settings.tmp.$$" result
   result="$(python3 - "$settings" "$CLAUDE_HOOK" "$tmp" <<'PY'
@@ -90,7 +92,10 @@ else:
 PY
 )"
   if [ "$result" = "changed" ]; then
-    [ -f "$settings" ] && cp "$settings" "$settings.bak.$(date +%s)"
+    # Back up a plain real file before replacing it; skip the .bak for a
+    # symlink-resolved target (dotfiles-managed — its history is in that repo,
+    # and a stray .bak would litter it).
+    if [ ! -L "$orig" ] && [ -f "$settings" ]; then cp "$settings" "$settings.bak.$(date +%s)"; fi
     mv "$tmp" "$settings"
     echo "-> Claude hook registered in $settings"
   else
@@ -100,8 +105,8 @@ PY
 }
 
 install_agy() {
-  local cfg
-  cfg="$(resolve_config_target "$HOME/.gemini/config/hooks.json" "Antigravity")" || return
+  local orig="$HOME/.gemini/config/hooks.json" cfg
+  cfg="$(resolve_config_target "$orig" "Antigravity")" || return 0
   mkdir -p "$(dirname "$cfg")"
   local tmp="$cfg.tmp.$$" result
   result="$(python3 - "$cfg" "$AGY_HOOK" "$tmp" <<'PY'
@@ -129,7 +134,7 @@ else:
 PY
 )"
   if [ "$result" = "changed" ]; then
-    [ -f "$cfg" ] && cp "$cfg" "$cfg.bak.$(date +%s)"
+    if [ ! -L "$orig" ] && [ -f "$cfg" ]; then cp "$cfg" "$cfg.bak.$(date +%s)"; fi
     mv "$tmp" "$cfg"
     echo "-> Antigravity hook registered in $cfg"
   else
