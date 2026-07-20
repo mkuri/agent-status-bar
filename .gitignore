@@ -2,3 +2,5 @@
 .DS_Store
 docs/superpowers/plans/
 .superpowers/
+__pycache__/
+*.pyc
