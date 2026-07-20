@@ -9,8 +9,17 @@
 set -euo pipefail
 
 RECORDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_HOOK="$RECORDER_DIR/record-session-state.py"
-AGY_HOOK="$RECORDER_DIR/record-antigravity-session-state.py"
+
+# Prefer a $HOME-relative command when the recorder lives under $HOME: it is
+# shorter, leaks no username, and works on any machine with the same layout.
+# The literal $HOME is expanded by the shell that runs the hook. Fall back to
+# the absolute path for a clone that lives outside $HOME.
+case "$RECORDER_DIR" in
+  "$HOME"/*) HOOK_BASE="\$HOME${RECORDER_DIR#"$HOME"}" ;;
+  *)         HOOK_BASE="$RECORDER_DIR" ;;
+esac
+CLAUDE_HOOK="$HOOK_BASE/record-session-state.py"
+AGY_HOOK="$HOOK_BASE/record-antigravity-session-state.py"
 
 confirm() {
   # confirm "<question>" <default: Y|N> -> returns 0 for yes

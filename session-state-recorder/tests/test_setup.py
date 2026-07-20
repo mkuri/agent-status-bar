@@ -104,6 +104,37 @@ class SetupTests(unittest.TestCase):
         self.assertIn("symlink to a missing target", result.stdout + result.stderr)
         self.assertFalse(missing.exists())  # no phantom target created
 
+    def test_home_relative_command_when_recorder_under_home(self):
+        # When the recorder lives under $HOME, the emitted hook command uses a
+        # literal $HOME prefix (shorter, no username, portable) instead of an
+        # absolute path. Run a copy of setup.sh placed under the sandbox HOME so
+        # RECORDER_DIR resolves inside it.
+        recdir = Path(self.home) / "projects" / "asb" / "session-state-recorder"
+        recdir.mkdir(parents=True)
+        setup_copy = recdir / "setup.sh"
+        setup_copy.write_text(SETUP.read_text())
+        setup_copy.chmod(0o755)
+        subprocess.run(
+            ["bash", str(setup_copy)], input="y\ny\n",  # Claude yes, agy yes
+            capture_output=True, text=True,
+            env={**os.environ, "HOME": self.home}, timeout=30,
+        )
+        base = "$HOME/projects/asb/session-state-recorder"
+        claude_cmd = self.load(self.claude_settings())["hooks"]["Stop"][0]["hooks"][0]["command"]
+        self.assertEqual(claude_cmd, 'python3 "%s/record-session-state.py"' % base)
+        agy = Path(self.home) / ".gemini" / "config" / "hooks.json"
+        agy_cmd = self.load(agy)["record-session-state"]["Stop"][0]["command"]
+        self.assertEqual(
+            agy_cmd, 'python3 "%s/record-antigravity-session-state.py" Stop' % base)
+
+    def test_absolute_command_when_recorder_outside_home(self):
+        # The real repo checkout lives outside the sandbox HOME, so the emitted
+        # command falls back to a literal absolute path (no $HOME rewrite).
+        run(self.home, "y\nn\n")
+        cmd = self.load(self.claude_settings())["hooks"]["Stop"][0]["hooks"][0]["command"]
+        self.assertNotIn("$HOME", cmd)
+        self.assertTrue(cmd.startswith('python3 "/'))
+
     def test_agy_symlinked_config_edited_on_confirm(self):
         real = Path(self.home) / "dot" / "hooks.json"
         real.parent.mkdir(parents=True)

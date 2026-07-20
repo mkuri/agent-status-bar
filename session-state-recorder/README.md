@@ -34,9 +34,12 @@ history is your backup); review and commit it in the repo that owns it afterward
 
 Restart your agent sessions afterward for the hooks to take effect.
 
-If you later move the clone, re-run `./setup.sh`; the command paths embed this
-directory's absolute path, so the old entry (now pointing at a missing file) is
-not auto-removed — delete the stale hook entry from your config.
+The registered command points at this directory: a `$HOME`-relative path (e.g.
+`python3 "$HOME/projects/agent-status-bar/session-state-recorder/…"`) when the
+clone lives under your home directory — shorter and portable across machines
+with the same layout — otherwise an absolute path. Either way, if you later
+move the clone, re-run `./setup.sh`; the old entry (now pointing at a missing
+file) is not auto-removed — delete the stale hook entry from your config.
 
 ## Install (manual)
 
@@ -77,6 +80,9 @@ If you prefer editing config by hand, add the recorder command under
 ```
 
 Use `/absolute/path/to/session-state-recorder` = wherever you cloned this repo.
+If that is under your home directory you can instead write a `$HOME`-relative
+path (e.g. `$HOME/projects/agent-status-bar/session-state-recorder/…`), which is
+what `./setup.sh` generates.
 
 For Antigravity, add to `~/.gemini/config/hooks.json`:
 
