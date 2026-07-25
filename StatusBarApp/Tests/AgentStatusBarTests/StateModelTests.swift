@@ -16,7 +16,7 @@ final class StateModelTests: XCTestCase {
         let out = StateModel().evaluate(
             [snap("a", .running, sinceAgo: 5), snap("b", .running, sinceAgo: 5),
              snap("c", .idle, sinceAgo: 5)],
-            activePIDs: [], now: now, config: config)
+            now: now, config: config)
         XCTAssertEqual(out.segments, [
             BarSegment(state: .running, count: 2, blinking: false),
             BarSegment(state: .idle, count: 1, blinking: false),
@@ -28,31 +28,28 @@ final class StateModelTests: XCTestCase {
         let model = StateModel()
         // First evaluate primes silently, even for an already-waiting session.
         let first = model.evaluate([snap("a", .running, sinceAgo: 1)],
-                                   activePIDs: [], now: now, config: config)
+                                   now: now, config: config)
         XCTAssertTrue(first.soundsToPlay.isEmpty)
         // Session enters permission (state change resets since).
         let entered = [SessionSnapshot(sessionID: "a", state: .permission,
                                        since: now.addingTimeInterval(10),
                                        cwd: "/tmp/proj", pid: 100,
                                        updatedAt: now.addingTimeInterval(10))]
-        let second = model.evaluate(entered, activePIDs: [],
-                                    now: now.addingTimeInterval(11), config: config)
+        let second = model.evaluate(entered, now: now.addingTimeInterval(11), config: config)
         XCTAssertEqual(second.soundsToPlay, ["Glass"])  // follows sound_permission
-        let third = model.evaluate(entered, activePIDs: [],
-                                   now: now.addingTimeInterval(15), config: config)
+        let third = model.evaluate(entered, now: now.addingTimeInterval(15), config: config)
         XCTAssertTrue(third.soundsToPlay.isEmpty)
     }
 
     func testImmediateIdleSoundOnEntry() {
         let model = StateModel()
         _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
-                           activePIDs: [], now: now, config: config)
+                           now: now, config: config)
         let idle = [SessionSnapshot(sessionID: "a", state: .idle,
                                     since: now.addingTimeInterval(5),
                                     cwd: "/tmp/proj", pid: 100,
                                     updatedAt: now.addingTimeInterval(5))]
-        let out = model.evaluate(idle, activePIDs: [],
-                                 now: now.addingTimeInterval(6), config: config)
+        let out = model.evaluate(idle, now: now.addingTimeInterval(6), config: config)
         XCTAssertEqual(out.soundsToPlay, ["Tink"])  // follows sound_idle
     }
 
@@ -61,32 +58,30 @@ final class StateModelTests: XCTestCase {
         follow.soundPermission = "Hero"
         let model = StateModel()
         _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
-                           activePIDs: [], now: now, config: follow)
+                           now: now, config: follow)
         let entered = [SessionSnapshot(sessionID: "a", state: .permission,
                                        since: now.addingTimeInterval(10),
                                        cwd: "/tmp/proj", pid: 100,
                                        updatedAt: now.addingTimeInterval(10))]
-        XCTAssertEqual(model.evaluate(entered, activePIDs: [],
-                                      now: now.addingTimeInterval(11),
+        XCTAssertEqual(model.evaluate(entered, now: now.addingTimeInterval(11),
                                       config: follow).soundsToPlay, ["Hero"])
 
         var overridden = config
         overridden.immediateSoundIdle = "Ping"
         let model2 = StateModel()
         _ = model2.evaluate([snap("b", .running, sinceAgo: 1)],
-                            activePIDs: [], now: now, config: overridden)
+                            now: now, config: overridden)
         let idled = [SessionSnapshot(sessionID: "b", state: .idle,
                                      since: now.addingTimeInterval(5),
                                      cwd: "/tmp/proj", pid: 100,
                                      updatedAt: now.addingTimeInterval(5))]
-        XCTAssertEqual(model2.evaluate(idled, activePIDs: [],
-                                       now: now.addingTimeInterval(6),
+        XCTAssertEqual(model2.evaluate(idled, now: now.addingTimeInterval(6),
                                        config: overridden).soundsToPlay, ["Ping"])
     }
 
     func testImmediateSoundSuppressedOnFirstEvaluate() {
         let out = StateModel().evaluate([snap("a", .permission, sinceAgo: 5)],
-                                        activePIDs: [], now: now, config: config)
+                                        now: now, config: config)
         XCTAssertTrue(out.soundsToPlay.isEmpty)
     }
 
@@ -95,54 +90,86 @@ final class StateModelTests: XCTestCase {
         c.immediateSoundPermission = ""
         let model = StateModel()
         _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
-                           activePIDs: [], now: now, config: c)
+                           now: now, config: c)
         let entered = [SessionSnapshot(sessionID: "a", state: .permission,
                                        since: now.addingTimeInterval(10),
                                        cwd: "/tmp/proj", pid: 100,
                                        updatedAt: now.addingTimeInterval(10))]
-        let out = model.evaluate(entered, activePIDs: [],
-                                 now: now.addingTimeInterval(11), config: c)
+        let out = model.evaluate(entered, now: now.addingTimeInterval(11), config: c)
         XCTAssertTrue(out.soundsToPlay.isEmpty)
     }
 
     func testThresholdBoundaryIsInclusive() {
         let perm = StateModel().evaluate([snap("a", .permission, sinceAgo: 300)],
-                                         activePIDs: [], now: now, config: config)
+                                         now: now, config: config)
         XCTAssertEqual(perm.soundsToPlay, ["Glass"])
         XCTAssertTrue(perm.rows.allSatisfy(\.overThreshold))
 
         let idle = StateModel().evaluate([snap("b", .idle, sinceAgo: 300)],
-                                         activePIDs: [], now: now, config: config)
+                                         now: now, config: config)
         XCTAssertEqual(idle.soundsToPlay, ["Tink"])
         XCTAssertTrue(idle.rows.allSatisfy(\.overThreshold))
     }
 
-    func testActivityOverrideDisplaysPermissionAsRunning() {
-        let out = StateModel().evaluate(
-            [snap("a", .permission, sinceAgo: 500, pid: 7)],
-            activePIDs: [7], now: now, config: config)
-        XCTAssertEqual(out.segments, [BarSegment(state: .running, count: 1, blinking: false)])
-        XCTAssertTrue(out.soundsToPlay.isEmpty)  // no permission alert while overridden
-    }
-
-    func testActivityOverrideDisabledByConfig() {
-        var c = config
-        c.activityDetection = false
+    func testPermissionStaysPermissionWithoutProducerEvent() {
+        // Event-only: a raw permission session is always displayed as
+        // permission. Process activity can no longer flip it to running.
         let out = StateModel().evaluate(
             [snap("a", .permission, sinceAgo: 5, pid: 7)],
-            activePIDs: [7], now: now, config: c)
-        XCTAssertEqual(out.segments, [BarSegment(state: .permission, count: 1, blinking: false)])
+            now: now, config: config)
+        XCTAssertEqual(out.segments,
+                       [BarSegment(state: .permission, count: 1, blinking: false)])
+    }
+
+    func testRepeatedEvaluationDoesNotRearmUnchangedPermission() {
+        // The reported bug: a permission episode past threshold re-armed its
+        // nag on later ticks (the CPU override kept pulling it out of the
+        // alert bookkeeping). Event-only must alert exactly once no matter how
+        // often the same unchanged episode is evaluated.
+        let model = StateModel()
+        let session = snap("a", .permission, sinceAgo: 400)  // since fixed
+        XCTAssertEqual(model.evaluate([session], now: now, config: config).soundsToPlay,
+                       ["Glass"])
+        for i in 1...5 {
+            let later = now.addingTimeInterval(Double(i) * 5)
+            XCTAssertTrue(
+                model.evaluate([session], now: later, config: config).soundsToPlay.isEmpty)
+        }
+    }
+
+    func testFirstSightPermissionOverThresholdNags() {
+        // App restart: a session already in permission past threshold nags on
+        // first sight (like idle) and plays no separate entry sound.
+        let out = StateModel().evaluate([snap("a", .permission, sinceAgo: 400)],
+                                        now: now, config: config)
+        XCTAssertEqual(out.soundsToPlay, ["Glass"])
+    }
+
+    func testApprovedToolBeforeThresholdReturnsToRunningSilently() {
+        let model = StateModel()
+        // Session sits in permission under threshold (primed silently).
+        _ = model.evaluate([snap("a", .permission, sinceAgo: 5)],
+                           now: now, config: config)
+        // Tool finishes (PostToolUse) -> running, well before the 300s nag.
+        let running = [SessionSnapshot(sessionID: "a", state: .running,
+                                       since: now.addingTimeInterval(100),
+                                       cwd: "/tmp/proj", pid: 100,
+                                       updatedAt: now.addingTimeInterval(100))]
+        let out = model.evaluate(running, now: now.addingTimeInterval(120), config: config)
+        XCTAssertTrue(out.soundsToPlay.isEmpty)
+        XCTAssertEqual(out.segments,
+                       [BarSegment(state: .running, count: 1, blinking: false)])
     }
 
     func testPermissionThresholdFiresSoundOnceAndBlinks() {
         let model = StateModel()
         let sessions = [snap("a", .permission, sinceAgo: 301)]
-        let first = model.evaluate(sessions, activePIDs: [], now: now, config: config)
+        let first = model.evaluate(sessions, now: now, config: config)
         XCTAssertEqual(first.soundsToPlay, ["Glass"])
         XCTAssertEqual(first.segments, [BarSegment(state: .permission, count: 1, blinking: true)])
         XCTAssertTrue(first.rows[0].overThreshold)
 
-        let second = model.evaluate(sessions, activePIDs: [], now: now.addingTimeInterval(5),
+        let second = model.evaluate(sessions, now: now.addingTimeInterval(5),
                                     config: config)
         XCTAssertTrue(second.soundsToPlay.isEmpty)          // alert-once
         XCTAssertTrue(second.segments[0].blinking)          // keeps blinking
@@ -150,14 +177,14 @@ final class StateModelTests: XCTestCase {
 
     func testIdleThresholdUsesIdleSound() {
         let out = StateModel().evaluate([snap("a", .idle, sinceAgo: 301)],
-                                        activePIDs: [], now: now, config: config)
+                                        now: now, config: config)
         XCTAssertEqual(out.soundsToPlay, ["Tink"])
     }
 
     func testUnderThresholdNoAlert() {
         let out = StateModel().evaluate(
             [snap("a", .permission, sinceAgo: 299), snap("b", .idle, sinceAgo: 299)],
-            activePIDs: [], now: now, config: config)
+            now: now, config: config)
         XCTAssertTrue(out.soundsToPlay.isEmpty)
         XCTAssertFalse(out.segments.contains { $0.blinking })
     }
@@ -165,16 +192,16 @@ final class StateModelTests: XCTestCase {
     func testAlertRearmsAfterStateChange() {
         let model = StateModel()
         _ = model.evaluate([snap("a", .permission, sinceAgo: 121)],
-                           activePIDs: [], now: now, config: config)
+                           now: now, config: config)
         // session went running (state change resets since), then waits again
         _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
-                           activePIDs: [], now: now.addingTimeInterval(10), config: config)
+                           now: now.addingTimeInterval(10), config: config)
         let again = model.evaluate(
             [SessionSnapshot(sessionID: "a", state: .permission,
                              since: now.addingTimeInterval(100),
                              cwd: "/tmp/proj", pid: 100,
                              updatedAt: now.addingTimeInterval(400))],
-            activePIDs: [], now: now.addingTimeInterval(400), config: config)
+            now: now.addingTimeInterval(400), config: config)
         // Entering permission already past the threshold plays the threshold
         // alert only — the immediate entry sound is suppressed on the same
         // tick so one moment never produces two sounds.
@@ -185,7 +212,7 @@ final class StateModelTests: XCTestCase {
         var c = config
         c.blink = false
         let out = StateModel().evaluate([snap("a", .permission, sinceAgo: 301)],
-                                        activePIDs: [], now: now, config: c)
+                                        now: now, config: c)
         XCTAssertEqual(out.soundsToPlay, ["Glass"])         // sound still fires
         XCTAssertFalse(out.segments[0].blinking)
     }
@@ -195,7 +222,7 @@ final class StateModelTests: XCTestCase {
             [snap("r", .running, sinceAgo: 5, cwd: "/x/api"),
              snap("i", .idle, sinceAgo: 5, cwd: "/x/web"),
              snap("p", .permission, sinceAgo: 5, cwd: "/x/infra")],
-            activePIDs: [], now: now, config: config)
+            now: now, config: config)
         XCTAssertEqual(out.rows.map(\.name), ["infra", "web", "api"])
         XCTAssertEqual(out.rows.map(\.state), [.permission, .idle, .running])
     }
@@ -210,17 +237,16 @@ final class StateModelTests: XCTestCase {
         let model = StateModel()
         // Brand-new session first seen in idle (SessionStart) — no ding.
         let start = model.evaluate([snap("a", .idle, sinceAgo: 1)],
-                                   activePIDs: [], now: now, config: config)
+                                   now: now, config: config)
         XCTAssertTrue(start.soundsToPlay.isEmpty)
         // Turn starts (running), then finishes (idle again) — the finish rings.
         _ = model.evaluate([snap("a", .running, sinceAgo: 1)],
-                           activePIDs: [], now: now.addingTimeInterval(10), config: config)
+                           now: now.addingTimeInterval(10), config: config)
         let finished = [SessionSnapshot(sessionID: "a", state: .idle,
                                         since: now.addingTimeInterval(20),
                                         cwd: "/tmp/proj", pid: 100,
                                         updatedAt: now.addingTimeInterval(20))]
-        let out = model.evaluate(finished, activePIDs: [],
-                                 now: now.addingTimeInterval(21), config: config)
+        let out = model.evaluate(finished, now: now.addingTimeInterval(21), config: config)
         XCTAssertEqual(out.soundsToPlay, ["Tink"])
     }
 
@@ -228,7 +254,7 @@ final class StateModelTests: XCTestCase {
         // App restart: a session already idle past threshold nags on first
         // sight but plays no entry sound.
         let out = StateModel().evaluate([snap("a", .idle, sinceAgo: 400)],
-                                        activePIDs: [], now: now, config: config)
+                                        now: now, config: config)
         XCTAssertEqual(out.soundsToPlay, ["Tink"])
     }
 
@@ -236,12 +262,12 @@ final class StateModelTests: XCTestCase {
         let model = StateModel()
         // Prime the model with an existing running session.
         _ = model.evaluate([snap("a", .running, sinceAgo: 5)],
-                           activePIDs: [], now: now, config: config)
+                           now: now, config: config)
         // A brand-new session appears in idle (SessionStart) after the model is
         // already primed — it must be silent (no entry ding).
         let out = model.evaluate(
             [snap("a", .running, sinceAgo: 10), snap("b", .idle, sinceAgo: 1)],
-            activePIDs: [], now: now.addingTimeInterval(5), config: config)
+            now: now.addingTimeInterval(5), config: config)
         XCTAssertTrue(out.soundsToPlay.isEmpty)
     }
 
@@ -259,7 +285,7 @@ final class StateModelTests: XCTestCase {
              SessionSnapshot(sessionID: "d", state: .permission,
                              since: now.addingTimeInterval(-5), cwd: "/x/desktop",
                              pid: 103, updatedAt: now, agent: .codex)],
-            activePIDs: [], now: now, config: config)
+            now: now, config: config)
         XCTAssertEqual(out.segments, [
             BarSegment(state: .running, count: 2, blinking: false),
             BarSegment(state: .permission, count: 1, blinking: false),
@@ -278,15 +304,13 @@ final class StateModelTests: XCTestCase {
         // preferred; the idle nag is deferred by the 120 s cooldown.
         let sessions = [snap("a", .permission, sinceAgo: 400, pid: 1),
                         snap("b", .idle, sinceAgo: 400, pid: 2)]
-        let t0 = model.evaluate(sessions, activePIDs: [], now: now, config: config)
+        let t0 = model.evaluate(sessions, now: now, config: config)
         XCTAssertEqual(t0.soundsToPlay, ["Glass"])
 
-        let t1 = model.evaluate(sessions, activePIDs: [],
-                                now: now.addingTimeInterval(5), config: config)
+        let t1 = model.evaluate(sessions, now: now.addingTimeInterval(5), config: config)
         XCTAssertTrue(t1.soundsToPlay.isEmpty)          // still within cooldown
 
-        let t2 = model.evaluate(sessions, activePIDs: [],
-                                now: now.addingTimeInterval(121), config: config)
+        let t2 = model.evaluate(sessions, now: now.addingTimeInterval(121), config: config)
         XCTAssertEqual(t2.soundsToPlay, ["Tink"])       // deferred nag finally rings
     }
 
@@ -295,7 +319,7 @@ final class StateModelTests: XCTestCase {
         // Prime both sessions (known); b sits in permission under threshold.
         _ = model.evaluate([snap("a", .running, sinceAgo: 1, pid: 1),
                             snap("b", .permission, sinceAgo: 1, pid: 2)],
-                           activePIDs: [], now: now, config: config)
+                           now: now, config: config)
         let later = now.addingTimeInterval(400)
         // a finishes (idle entry sound); b has now crossed its threshold.
         let tick = [SessionSnapshot(sessionID: "a", state: .idle,
@@ -304,7 +328,7 @@ final class StateModelTests: XCTestCase {
                     SessionSnapshot(sessionID: "b", state: .permission,
                                     since: now.addingTimeInterval(-1),
                                     cwd: "/tmp/proj", pid: 2, updatedAt: later)]
-        let out = model.evaluate(tick, activePIDs: [], now: later, config: config)
+        let out = model.evaluate(tick, now: later, config: config)
         XCTAssertEqual(out.soundsToPlay, ["Tink"])      // entry rings; b's nag deferred
     }
 
@@ -314,7 +338,7 @@ final class StateModelTests: XCTestCase {
         let out = StateModel().evaluate(
             [snap("a", .permission, sinceAgo: 400, pid: 1),
              snap("b", .idle, sinceAgo: 400, pid: 2)],
-            activePIDs: [], now: now, config: c)
+            now: now, config: c)
         XCTAssertEqual(out.soundsToPlay, ["Glass", "Tink"])
     }
 
@@ -325,19 +349,19 @@ final class StateModelTests: XCTestCase {
         let t0 = model.evaluate(
             [snap("a", .permission, sinceAgo: 400, pid: 1),
              snap("b", .idle, sinceAgo: 400, pid: 2)],
-            activePIDs: [], now: now, config: config)
+            now: now, config: config)
         XCTAssertEqual(t0.soundsToPlay, ["Glass"])
         // Before the cooldown elapses, b's idle episode resolves (goes running).
         let t1 = model.evaluate(
             [snap("a", .permission, sinceAgo: 400, pid: 1),
              snap("b", .running, sinceAgo: 1, pid: 2)],
-            activePIDs: [], now: now.addingTimeInterval(5), config: config)
+            now: now.addingTimeInterval(5), config: config)
         XCTAssertTrue(t1.soundsToPlay.isEmpty)
         // Past the cooldown, the dropped idle nag never rings (b still running).
         let t2 = model.evaluate(
             [snap("a", .permission, sinceAgo: 400, pid: 1),
              snap("b", .running, sinceAgo: 1, pid: 2)],
-            activePIDs: [], now: now.addingTimeInterval(200), config: config)
+            now: now.addingTimeInterval(200), config: config)
         XCTAssertTrue(t2.soundsToPlay.isEmpty)
     }
 }

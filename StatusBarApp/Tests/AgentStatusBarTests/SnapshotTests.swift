@@ -78,4 +78,44 @@ final class SnapshotTests: XCTestCase {
         // from antigravity-sessions, not claude-sessions.
         XCTAssertEqual(result.stale.map(\.agent), [.antigravity])
     }
+
+    func testSupersededKeepsNewestSnapshotForSameAgentPid() {
+        let now = Date()
+        // An old permission file and a fresh running file share one live PID.
+        let old = SessionSnapshot(sessionID: "old", state: .permission,
+                                  since: now.addingTimeInterval(-9000), cwd: "/p",
+                                  pid: 1, updatedAt: now.addingTimeInterval(-9000),
+                                  agent: .claude)
+        let new = SessionSnapshot(sessionID: "new", state: .running,
+                                  since: now.addingTimeInterval(-5), cwd: "/p",
+                                  pid: 1, updatedAt: now, agent: .claude)
+        let result = StateModel.splitSuperseded([old, new])
+        XCTAssertEqual(result.active.map(\.sessionID), ["new"])
+        XCTAssertEqual(result.superseded.map(\.sessionID), ["old"])
+    }
+
+    func testSupersededIndependentAcrossAgents() {
+        let now = Date()
+        // Same session id and pid but different agents must not collapse.
+        let claude = SessionSnapshot(sessionID: "dup", state: .permission,
+                                     since: now, cwd: "/p", pid: 1,
+                                     updatedAt: now, agent: .claude)
+        let codex = SessionSnapshot(sessionID: "dup", state: .idle,
+                                    since: now, cwd: "/p", pid: 1,
+                                    updatedAt: now, agent: .codex)
+        let result = StateModel.splitSuperseded([claude, codex])
+        XCTAssertEqual(Set(result.active.map(\.agent)), [.claude, .codex])
+        XCTAssertTrue(result.superseded.isEmpty)
+    }
+
+    func testSupersededKeepsDistinctPidsForSameAgent() {
+        let now = Date()
+        let a = SessionSnapshot(sessionID: "a", state: .running, since: now,
+                                cwd: "/p", pid: 1, updatedAt: now, agent: .claude)
+        let b = SessionSnapshot(sessionID: "b", state: .idle, since: now,
+                                cwd: "/p", pid: 2, updatedAt: now, agent: .claude)
+        let result = StateModel.splitSuperseded([a, b])
+        XCTAssertEqual(Set(result.active.map(\.sessionID)), ["a", "b"])
+        XCTAssertTrue(result.superseded.isEmpty)
+    }
 }

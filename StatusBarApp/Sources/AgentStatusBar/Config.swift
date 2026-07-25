@@ -6,8 +6,6 @@ struct Config: Equatable {
     var soundPermission: String = "Glass"
     var soundIdle: String = "Tink"
     var blink: Bool = true
-    var activityDetection: Bool = true
-    var activityCpuThresholdPct: Double = 3.0
     var soundCooldownSec: Double = 120
     // Played once the moment a session enters a waiting state.
     // nil (key absent) follows sound_permission / sound_idle; "" disables.
@@ -25,8 +23,6 @@ struct Config: Equatable {
         if let v = raw["sound_permission"] as? String { soundPermission = v }
         if let v = raw["sound_idle"] as? String { soundIdle = v }
         if let v = raw["blink"] as? Bool { blink = v }
-        if let v = raw["activity_detection"] as? Bool { activityDetection = v }
-        if let v = raw["activity_cpu_threshold_pct"] as? NSNumber { activityCpuThresholdPct = v.doubleValue }
         if let v = raw["sound_cooldown_sec"] as? NSNumber { soundCooldownSec = v.doubleValue }
         if let v = raw["immediate_sound_permission"] as? String { immediateSoundPermission = v }
         if let v = raw["immediate_sound_idle"] as? String { immediateSoundIdle = v }

@@ -168,24 +168,20 @@ final class StatusController: NSObject, NSApplicationDelegate {
         let all = loadSnapshots()
         let livePIDs = Set(all.map(\.pid).filter(ProcessProbe.isAlive))
         let (live, stale) = StateModel.splitStale(all, livePIDs: livePIDs, now: now)
+        // Among live files sharing one (agent, pid), keep only the newest;
+        // superseded leftovers are deleted like stale files and never evaluated,
+        // so an old session file on a still-live process cannot blink or alert.
+        let (active, superseded) = StateModel.splitSuperseded(live)
         let dirByAgent = Dictionary(uniqueKeysWithValues:
             stateDirectories.map { ($0.agent, $0.url) })
-        for s in stale {
+        for s in stale + superseded {
             if let dir = dirByAgent[s.agent] {
                 try? FileManager.default.removeItem(
                     at: dir.appendingPathComponent("\(s.sessionID).json"))
             }
         }
 
-        var activePIDs: Set<Int32> = []
-        if config.activityDetection, live.contains(where: { $0.state == .permission }) {
-            let cpu = ProcessProbe.treeCPU(roots: Set(live.map(\.pid)),
-                                           entries: ProcessProbe.samplePS())
-            activePIDs = Set(cpu.filter { $0.value >= config.activityCpuThresholdPct }
-                                .map(\.key))
-        }
-
-        let out = model.evaluate(live, activePIDs: activePIDs, now: now, config: config)
+        let out = model.evaluate(active, now: now, config: config)
         for name in out.soundsToPlay { NSSound(named: name)?.play() }
         lastOutput = out
         if !out.segments.contains(where: \.blinking) { blinkOn = true }
