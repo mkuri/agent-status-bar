@@ -9,10 +9,19 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(c.soundPermission, "Glass")
         XCTAssertEqual(c.soundIdle, "Tink")
         XCTAssertTrue(c.blink)
-        XCTAssertTrue(c.activityDetection)
-        XCTAssertEqual(c.activityCpuThresholdPct, 3.0)
         XCTAssertNil(c.immediateSoundPermission)  // nil = follow sound_permission
         XCTAssertNil(c.immediateSoundIdle)        // nil = follow sound_idle
+    }
+
+    func testRemovedActivityKeysStillParse() {
+        // Old configs may still carry the removed CPU-activity keys. Unknown
+        // keys are ignored, so the config parses identically to one without
+        // them and never fails to load.
+        let c = Config(raw: ["activity_detection": true,
+                             "activity_cpu_threshold_pct": 5.0,
+                             "sound_permission": "Ping"])
+        XCTAssertEqual(c.soundPermission, "Ping")
+        XCTAssertEqual(c, Config(raw: ["sound_permission": "Ping"]))
     }
 
     func testImmediateSoundsDisabledByEmptyString() {

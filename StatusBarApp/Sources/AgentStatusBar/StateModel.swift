@@ -107,6 +107,32 @@ final class StateModel {
         return (live, stale)
     }
 
+    /// Among snapshots sharing a `(agent, pid)`, keep only the most recently
+    /// updated one as active; treat the rest as superseded so an old session
+    /// file left behind on a still-live process cannot display, blink, or
+    /// alert. Assumes one current session per agent process.
+    static func splitSuperseded(_ snapshots: [SessionSnapshot])
+        -> (active: [SessionSnapshot], superseded: [SessionSnapshot]) {
+        func key(_ s: SessionSnapshot) -> String { "\(s.agent.rawValue)|\(s.pid)" }
+        // Winner per key: newest updatedAt, tie-broken by since then sessionID
+        // so the choice never depends on directory iteration order.
+        var winner: [String: SessionSnapshot] = [:]
+        for s in snapshots {
+            if let cur = winner[key(s)],
+               (cur.updatedAt, cur.since, cur.sessionID)
+                   >= (s.updatedAt, s.since, s.sessionID) {
+                continue
+            }
+            winner[key(s)] = s
+        }
+        var active: [SessionSnapshot] = []
+        var superseded: [SessionSnapshot] = []
+        for s in snapshots {
+            if winner[key(s)] == s { active.append(s) } else { superseded.append(s) }
+        }
+        return (active, superseded)
+    }
+
     private var alertedKeys: Set<String> = []
     private var seenEntryKeys: Set<String> = []
     /// Session ids (`agent|id`) observed on a previous tick. A session's first
@@ -117,15 +143,8 @@ final class StateModel {
     /// Threshold nags fire only once `sound_cooldown_sec` has passed since it.
     private var lastSoundAt: Date?
 
-    func evaluate(_ snapshots: [SessionSnapshot], activePIDs: Set<Int32>,
+    func evaluate(_ snapshots: [SessionSnapshot],
                   now: Date, config: Config) -> DisplayOutput {
-        let effective: [(snap: SessionSnapshot, state: SessionState)] = snapshots.map { s in
-            if s.state == .permission, config.activityDetection, activePIDs.contains(s.pid) {
-                return (s, .running)
-            }
-            return (s, s.state)
-        }
-
         var blinkStates: Set<SessionState> = []
         var rows: [SessionRow] = []
         var currentKeys: Set<String> = []
@@ -135,7 +154,8 @@ final class StateModel {
         // (priority, key, sound): permission (0) is preferred over idle (1).
         var nagCandidates: [(priority: Int, key: String, sound: String)] = []
 
-        for (s, state) in effective {
+        for s in snapshots {
+            let state = s.state
             let sessionKey = "\(s.agent.rawValue)|\(s.sessionID)"
             let firstSight = !knownSessions.contains(sessionKey)
             currentSessions.insert(sessionKey)
@@ -200,7 +220,7 @@ final class StateModel {
 
         let order: [SessionState] = [.running, .permission, .idle]
         let segments = order.compactMap { st -> BarSegment? in
-            let count = effective.filter { $0.state == st }.count
+            let count = snapshots.filter { $0.state == st }.count
             return count == 0 ? nil
                 : BarSegment(state: st, count: count, blinking: blinkStates.contains(st))
         }

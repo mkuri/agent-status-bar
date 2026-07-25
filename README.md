@@ -46,9 +46,7 @@ re-read every 5 s:
       "sound_permission": "Glass",
       "sound_idle": "Tink",
       "sound_cooldown_sec": 120,
-      "blink": true,
-      "activity_detection": true,
-      "activity_cpu_threshold_pct": 3.0
+      "blink": true
     }
 
 A session's first sighting is silent, so launching a session does not ding.
@@ -60,6 +58,14 @@ nags never land within that gap of another sound — a gated nag is deferred to
 the next quiet gap rather than dropped. Optional `immediate_sound_permission` /
 `immediate_sound_idle` keys override the entry sound. Sounds are system sound
 names from /System/Library/Sounds; "" disables a sound.
+
+State comes entirely from producer hook events; the app never samples CPU to
+guess a session's state. Because no hook fires when you approve a permission
+prompt, an approved command that runs longer than `permission_alert_sec` shows
+as permission until it finishes and may emit one past-threshold nag — raise
+`permission_alert_sec` (e.g. 600) if that is noisy. Old configs carrying the
+removed `activity_detection` / `activity_cpu_threshold_pct` keys still load;
+the keys are ignored.
 
 ## Producer setup
 

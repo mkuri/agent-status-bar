@@ -129,6 +129,15 @@ redundant — `UserPromptSubmit` already sets `running`), `SubagentStart/Stop`
 
 ### Activity detection (permission → running without an event)
 
+> **Superseded (2026-07-21):** CPU-based activity detection was removed. Runtime
+> observation showed CPU is not a stable signal — an untouched Claude process
+> crosses 3% intermittently — and the override also drove the alert bookkeeping,
+> so a CPU round trip re-armed entry and threshold sounds on an unchanged
+> permission episode (duplicate and phantom dings). State is now event-only; the
+> `activity_detection` / `activity_cpu_threshold_pct` keys are gone (old configs
+> still parse). See `2026-07-21-event-only-activity-design.md`. The rest of this
+> section is retained as the original record.
+
 Claude Code has no hook that fires when the user approves a permission
 request; the next event is `PostToolUse` after the tool finishes. A long
 command approved and left unattended would otherwise show `permission` until
@@ -224,8 +233,8 @@ disables that sound.
   Config → (bar segments, menu rows, alerts to fire, blink set)`. Also owns
   stale-session filtering and the alert-once bookkeeping.
 - `Config.swift` — config file decoding with defaults.
-- `ProcessProbe.swift` — PID liveness (`kill(pid, 0)`) and the CPU-tree
-  sampler (`ps` once per tick, shared across sessions).
+- `ProcessProbe.swift` — PID liveness (`kill(pid, 0)`). (The CPU-tree sampler
+  was removed with activity detection; see the 2026-07-21 event-only design.)
 
 ### `scripts/`
 
@@ -277,8 +286,10 @@ and points at the dotfiles hook as the reference producer.
 - `AskUserQuestion`-style dialogs are not permission requests: the session
   shows `running` until the `idle_prompt` notification (~60 s) flips it to
   `idle`.
-- Approval of a non-CPU-bound long tool (rare; most long tools are
-  subprocess-based) may keep `permission` displayed until `PostToolUse`.
+- Since state is event-only (no approval hook exists), an approved tool
+  running past `permission_alert_sec` stays displayed as `permission` until
+  `PostToolUse` and may emit one past-threshold nag; raise the threshold if
+  noisy. See the 2026-07-21 event-only design.
 - If Claude Code renames hook events in a future release, the hook script
   ignores unknown events and the bar degrades to stale-data cleanup;
   the hook entries in dotfiles `settings.json` are the single place listing
