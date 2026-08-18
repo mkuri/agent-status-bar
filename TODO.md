@@ -24,7 +24,7 @@ Legend: `⚑` needs a maintainer decision · items without it are mechanical.
 ## Soon (trust + contributors)
 - [ ] **⚑ `.github/FUNDING.yml`** pointing at GitHub Sponsors (enable Sponsors on the `mkuri` account first) and/or Ko-fi / Buy Me a Coffee. Adds a "Sponsor" button to the repo.
 - [ ] **CI:** GitHub Actions running `swift build` + `swift test` on a macOS runner for pull requests; add a status badge to the README.
-- [ ] **CONTRIBUTING.md:** how to build/test (`cd StatusBarApp && swift build && swift test`) and the producer↔consumer split (state files are the contract).
+- [ ] **CONTRIBUTING.md:** how to build/test (`cd macos-status-bar && swift build && swift test`) and the producer↔consumer split (state files are the contract).
 - [ ] Issue and PR templates; `SECURITY.md` with a report contact; optionally `CODE_OF_CONDUCT.md` (Contributor Covenant).
 
 ## Later (reduce install friction = adoption)

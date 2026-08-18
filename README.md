@@ -8,7 +8,7 @@ blink alerts when a session has been waiting past a threshold.
 ## How it works
 
 This repo has two peers: a **producer** (`session-state-recorder/`) and a
-**consumer** (`StatusBarApp/`, one UI example). The producer's hook scripts
+**consumer** (`macos-status-bar/`, one UI example). The producer's hook scripts
 write one JSON state file per session into
 `${XDG_STATE_HOME:-~/.local/state}/claude-sessions/` (Claude Code),
 `antigravity-sessions/` (Antigravity CLI, `agy`), and `codex-sessions/`
@@ -23,7 +23,7 @@ agents; each dropdown row is tagged with its agent (`claude · project` /
 
 ## Build and run
 
-    cd StatusBarApp
+    cd macos-status-bar
     swift build -c release
     .build/release/AgentStatusBar &
 
@@ -83,7 +83,7 @@ you to review and trust newly registered hooks with `/hooks`. Requires
 
 ## Testing
 
-    cd StatusBarApp && swift test            # consumer unit tests
+    cd macos-status-bar && swift test        # consumer unit tests
     scripts/fake-session.sh                  # visual E2E without a producer
 
 ## License

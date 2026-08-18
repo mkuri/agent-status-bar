@@ -2,7 +2,7 @@
 
 The **producer** side of agent-status-bar: hook scripts that record each agent
 session's state into a versioned JSON state-file contract. Display tools (the
-`StatusBarApp/` menu bar app, or any other UI) are **consumers** that read those
+`macos-status-bar/` menu bar app, or any other UI) are **consumers** that read those
 files. This directory is the single source of truth for the producer; stdlib
 Python only, no third-party dependencies.
 

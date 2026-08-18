@@ -1,6 +1,6 @@
 #!/bin/bash
 # Drive the menu bar app with fake contract state files across both agents.
-# Run the app first: StatusBarApp/.build/debug/AgentStatusBar &
+# Run the app first: macos-status-bar/.build/debug/AgentStatusBar &
 set -euo pipefail
 
 BASE="${XDG_STATE_HOME:-$HOME/.local/state}"
