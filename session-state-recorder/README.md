@@ -132,5 +132,8 @@ process exits or the record becomes stale.
 ## Test
 
 ```
-for t in tests/test_*.py; do python3 "$t"; done
+python3 -m unittest discover -s tests -p 'test_*.py'
 ```
+
+This is the command CI runs. Requires `bash` on `PATH` (`test_setup.py` drives
+`setup.sh` against a throwaway `$HOME`).

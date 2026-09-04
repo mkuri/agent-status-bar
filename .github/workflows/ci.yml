@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# One job per top-level component. The Linux consumer adds a
+# `linux-status-bar` job here when that directory exists.
+jobs:
+  macos-status-bar:
+    name: macos-status-bar (swift)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: macos-status-bar
+    steps:
+      - uses: actions/checkout@v7
+      - name: Show toolchain
+        run: swift --version
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+
+  session-state-recorder:
+    name: session-state-recorder (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Floor is the version on Ubuntu 22.04, the documented target host.
+        python-version: ['3.10', '3.13']
+    defaults:
+      run:
+        working-directory: session-state-recorder
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Test
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
