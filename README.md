@@ -1,5 +1,7 @@
 # agent-status-bar
 
+[![CI](https://github.com/mkuri/agent-status-bar/actions/workflows/ci.yml/badge.svg)](https://github.com/mkuri/agent-status-bar/actions/workflows/ci.yml)
+
 Minimal macOS menu bar app showing every Claude Code, Antigravity CLI (`agy`),
 and Codex session on the machine at a glance: running / waiting-for-permission
 / awaiting-instruction counts rendered as monochrome SF Symbols, with sound +
@@ -84,7 +86,11 @@ you to review and trust newly registered hooks with `/hooks`. Requires
 ## Testing
 
     cd macos-status-bar && swift test        # consumer unit tests
+    cd session-state-recorder && python3 -m unittest discover -s tests -p 'test_*.py'
     scripts/fake-session.sh                  # visual E2E without a producer
+
+CI runs the consumer suite on macOS and the producer suite on Ubuntu for every
+pull request.
 
 ## License
 
